@@ -51,7 +51,7 @@ function User() {
       isSubscribed: true,
       subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
     }));
-    alert('구독이 완료되었습니다!');
+    alert('구독이 완료되었습니다!'); 
   };
 
   return (
