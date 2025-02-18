@@ -10,6 +10,7 @@ import Login from './components/Login';
 import Register from './components/Register';
 import Notifications from './components/Notifications';
 import AssetDetail from './components/AssetDetail';
+import User from './components/User';
 import './App.css';
 
 function App() {
@@ -25,6 +26,7 @@ function App() {
           <Route path="/assets" element={<AssetList />} />
           <Route path="/assets/:assetId" element={<AssetDetail />} />
           <Route path="/assets/:assetId/posts" element={<BoardList />} />
+          <Route path="/users/:user" element={<User />} />
           <Route path="/assets/:assetId/posts/write" element={<PostWrite />} />
           <Route path="/assets/:assetId/posts/:postId" element={<PostDetail />} />
         </Routes>

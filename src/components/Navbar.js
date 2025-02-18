@@ -68,6 +68,11 @@ function Navbar() {
                   </span>
                 </li>
                 <li className="nav-item">
+                  <Link to={`/users/${username}`} 
+                    className="btn btn-outline-light ms-2">
+                    마이페이지</Link>
+                </li>
+                <li className="nav-item">
                   <button 
                     className="btn btn-outline-light ms-2"
                     onClick={handleLogout}
