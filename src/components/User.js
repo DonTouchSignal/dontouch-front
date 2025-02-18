@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import userApi from '../api/userApi';
 
 function User() {
   const [userInfo, setUserInfo] = useState({
@@ -7,25 +8,42 @@ function User() {
     isSubscribed: false,
     subscriptionEndDate: null,
   });
+  const [favoriteStocks, setFavoriteStocks] = useState([]);
+  const [myPosts, setMyPosts] = useState([]);
+  const [myComments, setMyComments] = useState([]);
 
-  // 임시 데이터
-  const [favoriteStocks] = useState([
-    { name: '삼성전자', code: '005930', price: '71,000', change: '+1.2%' },
-    { name: 'SK하이닉스', code: '000660', price: '135,000', change: '-0.8%' },
-    { name: '네이버', code: '035420', price: '215,000', change: '+2.1%' },
-  ]);
 
-  const [myPosts] = useState([
-    { id: 1, title: '주식 시장 전망 분석', date: '2024-01-15', likes: 24, comments: 8 },
-    { id: 2, title: '테슬라 실적 리뷰', date: '2024-01-12', likes: 15, comments: 5 },
-    { id: 3, title: '코스피 전망', date: '2024-01-10', likes: 32, comments: 12 },
-  ]);
+  useEffect(() => {
+    const loadFavoriteStocks = async () => {
+      try {
+        const favoriteStocksData = await userApi.getFavoriteStocks(userInfo.email);
+        setFavoriteStocks(favoriteStocksData);
+      } catch (error) {
+        console.error('Error loading favoriteStocks:', error);
+      }
+    };
+    loadFavoriteStocks();
 
-  const [myComments] = useState([
-    { id: 1, content: '좋은 분석이네요', postTitle: '2024년 시장 전망', date: '2024-01-15' },
-    { id: 2, content: '저도 동의합니다', postTitle: '반도체 산업 분석', date: '2024-01-14' },
-    { id: 3, content: '참고하겠습니다', postTitle: '투자 전략 공유', date: '2024-01-13' },
-  ]);
+    const loadMyPosts = async () => {
+      try {
+        const myPostsData = await userApi.getMyPosts(userInfo.email);
+        setMyPosts(myPostsData);
+      } catch (error) {
+        console.error('Error loading myPosts:', error);
+      }
+    };
+    loadMyPosts();
+
+    const loadMyComments = async () => {
+      try {
+        const myCommentsData = await userApi.getMyComments(userInfo.email);
+        setMyComments(myCommentsData);
+      } catch (error) {
+        console.error('Error loading myComments:', error);
+      }
+    };
+    loadMyComments();
+  }, []);
 
   const handleSubscribe = () => {
     setUserInfo(prev => ({
