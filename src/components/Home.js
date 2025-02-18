@@ -397,7 +397,7 @@ function Home() {
                     <div key={index} style={chatStyles.messageContainer}>
                       <div className="d-flex justify-content-between mb-1">
                         <span style={chatStyles.username}>
-                          {msg.userId ? `User ${msg.userId}` : 'Guest'}
+                          {msg.nickName ? `User ${msg.nickName}` : 'Guest'}
                         </span>
                         <span style={chatStyles.timestamp}>
                           {new Date(msg.sendAt).toLocaleTimeString([], {
