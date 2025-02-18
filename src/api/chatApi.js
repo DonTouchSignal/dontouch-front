@@ -80,7 +80,7 @@ class ChatApi {
     const messageData = {
       message: message,
       guest: true,
-      userId: null,
+      nickName: null,
       sendAt: new Date().toISOString()
     };
 
