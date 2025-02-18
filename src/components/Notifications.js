@@ -6,21 +6,23 @@ function Notifications() {
   const [error, setError] = useState(null);
   const [email, setEmail] = useState(null);
 
-  // localStorage에서 email 가져오기 (없으면 기본값 사용)
+  // localStorage에서 email 가져오기
   useEffect(() => {
     const storedEmail = localStorage.getItem('email');
     if (storedEmail) {
       setEmail(storedEmail);
     } else {
       console.warn("Email이 localStorage에 없습니다. 기본값을 사용합니다.");
-      setEmail("sohyun5429@gmail.com");  // 테스트용 기본 이메일 (실제 환경에서는 로그인 기능 필요)
+      setEmail("sohyun5429@gmail.com"); // 테스트용 기본 이메일
     }
   }, []);
 
   // 알림 조회
   const getNotifications = async () => {
+    if (!email || notifications.length > 0) return; // 이미 알림이 있으면 추가 요청 방지
+
     try {
-      console.log('알림을 가져오기 위한 email:', email || "없음 (비로그인 상태)");
+      console.log('알림을 가져오기 위한 email:', email);
       const data = await notificationApi.fetchNotifications(email);
       console.log('알림 가져오기 성공:', data);
       setNotifications(data);
@@ -31,28 +33,27 @@ function Notifications() {
   };
 
   // 알림 삭제
-  const handleDelete = async (alertId, email) => {
+  const handleDelete = async (alertId) => {
     try {
-      console.log("삭제 요청 시작: alertId =", alertId, "email =", email);
+      console.log("삭제 요청 시작: alertId =", alertId);
 
       const response = await notificationApi.deleteNotification(alertId, email);
 
       console.log('삭제 응답:', response);
       setNotifications(notifications.filter((notif) => notif.alertId !== alertId));
-      alert(response.message || '알림이 삭제되었습니다.');
+      alert(response.Message || '알림이 삭제되었습니다.');
     } catch (err) {
       console.error('알림 삭제 실패:', err);
       alert('알림 삭제에 실패했습니다.');
     }
   };
 
-
   // email이 설정된 후에만 getNotifications 실행
   useEffect(() => {
-    if (email !== null) {
+    if (email) {
       getNotifications();
     }
-  }, [email]);
+  }, [email]);  // email이 변경될 때만 실행
 
   return (
       <div className="container py-4 text-light">
@@ -69,11 +70,8 @@ function Notifications() {
                               !notification.isRead ? 'text-light' : 'text-secondary'
                           }`}
                       >
-                        <div key={notification.alertId}>
+                        <div>
                           <h5 className="mb-1">{notification.assetName}</h5>
-                          {/*<p className="mb-1">*/}
-                          {/*  목표가 {notification.targetPrice}원 {notification.condition === 'above' ? '이상' : '이하'}*/}
-                          {/*</p>*/}
                           <p>알림 ID: {notification.alertId}</p>
                           <p>메시지: {notification.kafkaMessage}</p>
                           <small>{notification.triggeredAt}</small>
@@ -81,7 +79,7 @@ function Notifications() {
                         <div>
                           <button
                               className="btn btn-outline-danger btn-sm"
-                              onClick={() => handleDelete(notification.alertId,email)}
+                              onClick={() => handleDelete(notification.alertId)}
                           >
                             삭제
                           </button>
