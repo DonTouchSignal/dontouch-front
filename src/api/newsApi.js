@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 //수정
-const BASE_URL = 'http://localhost:8086';
+const BASE_URL = 'http://localhost:8080';
 
 const axiosInstance = axios.create({
   baseURL: BASE_URL,

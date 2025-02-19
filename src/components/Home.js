@@ -29,12 +29,6 @@ function Home() {
     { name: 'XRP', change: '+1.8%', price: '800' }
   ];
 
-  const popularPosts = [
-    { title: '오늘의 주식 시장 분석', comments: 42, likes: 156 },
-    { title: '코인 투자 전략 공유', comments: 38, likes: 128 },
-    { title: '새로운 규제안에 대한 의견', comments: 27, likes: 95 }
-  ];
-
   const adContents = [
     {
       imageUrl: "/ads/ad1.jpg",
@@ -163,7 +157,7 @@ function Home() {
   }, []);
 
   return (
-    <div className="container-fluid bg-dark py-4">
+    <div className="container-fluid py-4">
       <div className="row">
         {/* 왼쪽 광고 사이드바 */}
         <div className="col-lg-2">
@@ -232,37 +226,10 @@ function Home() {
             </div>
           </div>
 
-          {/* 인기글 섹션 */}
-          <div className="card bg-dark border-secondary mb-4">
-            <div className="card-header bg-dark border-bottom border-secondary d-flex justify-content-between align-items-center">
-              <h3 className="card-title mb-0 text-light">인기글</h3>
-              <button className="btn btn-outline-primary btn-sm">더보기</button>
-            </div>
-            <div className="card-body p-0">
-              <div className="list-group list-group-flush">
-                {popularPosts.map((post, index) => (
-                  <div key={index} 
-                    className="list-group-item bg-dark text-light border-secondary d-flex align-items-center" 
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <span className="badge bg-primary me-3">{index + 1}</span>
-                    <div className="ms-2 me-auto">
-                      <div className="fw-bold">{post.title}</div>
-                      <small className="text-secondary">
-                        <i className="bi bi-chat-dots me-1"></i> {post.comments}
-                        <i className="bi bi-heart ms-3 me-1"></i> {post.likes}
-                      </small>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
           {/* 뉴스 섹션 */}
           <div className="card bg-dark border-secondary">
             <div className="card-header bg-dark border-bottom border-secondary">
-              <h3 className="card-title mb-3 text-light">실시간 뉴스</h3>
+              <h3 className="card-title mb-3 text-light">뉴스 검색</h3>
               <div className="d-flex gap-2 mb-3">
                 <button 
                   className={`btn ${activeTab === 'stock' ? 'btn-primary' : 'btn-outline-primary'}`}

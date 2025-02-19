@@ -2,7 +2,7 @@ import axios from 'axios';
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 
-const BASE_URL = 'http://localhost:8086';
+const BASE_URL = 'http://localhost:8080';
 
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
@@ -106,11 +106,12 @@ class ChatApi {
     if (!this.stompClient?.active) return;
 
     const authUser = localStorage.getItem('X-Auth-User');
+    const accessToken = localStorage.getItem('accessToken');
     
     const messageData = {
       message: message,
-      guest: !authUser,  // 로그인 상태에 따라 guest 여부 결정
-      nickName: null,    // 서버에서 처리하도록 null로 전송
+      guest: !authUser,  // 로그인하지 않은 경우 true
+      nickName: authUser ? null : 'Guest',  // 로그인하지 않은 경우 'Guest'로 설정
       sendAt: new Date().toLocaleString('sv').replace(' ', 'T') + '.000Z'
     };
 
@@ -118,7 +119,7 @@ class ChatApi {
       destination: '/app/message',
       body: JSON.stringify(messageData),
       headers: {
-        'Authorization': localStorage.getItem('accessToken') || 'null',
+        'Authorization': accessToken || 'null',
         'X-Auth-User': authUser || 'null'
       }
     });
