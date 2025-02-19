@@ -2,6 +2,7 @@ import axios from 'axios';
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 
+
 const BASE_URL = 'http://localhost:8086';
 
 const axiosInstance = axios.create({
@@ -9,6 +10,7 @@ const axiosInstance = axios.create({
   timeout: 5000,
   headers: {
     'Content-Type': 'application/json',
+  withCredentials: true
   }
 });
 
@@ -16,6 +18,7 @@ class ChatApi {
   constructor() {
     this.stompClient = null;
     this.messageCallbacks = [];
+    this.isConnecting = false;
   }
 
   // 전체 메시지 조회
@@ -39,6 +42,9 @@ class ChatApi {
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
+      connectHeaders: {
+        'X-XSRF-TOKEN': 'null'  // CSRF 토큰 무시
+      }
     });
 
     client.onConnect = () => {
@@ -80,7 +86,7 @@ class ChatApi {
     const messageData = {
       message: message,
       guest: true,
-      userId: null,
+      nickName: null,
       sendAt: new Date().toISOString()
     };
 

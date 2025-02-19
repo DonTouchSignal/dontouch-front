@@ -118,6 +118,57 @@ function Home() {
     window.open(link, '_blank', 'noopener,noreferrer');
   };
 
+  // TradingView 위젯 컴포넌트
+  useEffect(() => {
+    const loadTradingViewWidget = () => {
+      // 기존 스크립트가 있다면 제거
+      const existingScript = document.getElementById('tradingview-widget-script');
+      if (existingScript) {
+        existingScript.remove();
+      }
+
+      // 위젯 컨테이너 초기화
+      const container = document.querySelector('.tradingview-widget-container__widget');
+      if (container) {
+        container.innerHTML = '';
+      }
+
+      // 스크립트 엘리먼트 생성
+      const script = document.createElement('script');
+      script.id = 'tradingview-widget-script';
+      script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-timeline.js';
+      script.type = 'text/javascript';
+      script.async = true;
+
+      // 위젯 설정을 스크립트 속성으로 추가
+      script.innerHTML = JSON.stringify({
+        "feedMode": "all_symbols",
+        "colorTheme": "dark",
+        "isTransparent": false,
+        "displayMode": "regular",
+        "width": "100%",
+        "height": "550",
+        "locale": "kr"
+      });
+
+      // 스크립트를 위젯 컨테이너에 추가
+      if (container) {
+        container.appendChild(script);
+      }
+    };
+
+    // React의 Strict Mode로 인한 이중 실행 방지
+    const timeoutId = setTimeout(loadTradingViewWidget, 0);
+
+    return () => {
+      clearTimeout(timeoutId);
+      const script = document.getElementById('tradingview-widget-script');
+      if (script) {
+        script.remove();
+      }
+    };
+  }, []);
+
   return (
     <div className="container-fluid bg-dark py-4">
       <div className="row">
@@ -397,7 +448,7 @@ function Home() {
                     <div key={index} style={chatStyles.messageContainer}>
                       <div className="d-flex justify-content-between mb-1">
                         <span style={chatStyles.username}>
-                          {msg.userId ? `User ${msg.userId}` : 'Guest'}
+                          {msg.nickName ? `User ${msg.nickName}` : 'Guest'}
                         </span>
                         <span style={chatStyles.timestamp}>
                           {new Date(msg.sendAt).toLocaleTimeString([], {
@@ -426,7 +477,6 @@ function Home() {
                   value={currentMessage}
                   onChange={(e) => setCurrentMessage(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  disabled={!connected}
                 />
                 <button 
                   className="btn btn-primary"
@@ -445,28 +495,11 @@ function Home() {
             <div className="card-header bg-dark border-bottom border-secondary">
               <h3 className="card-title mb-0 text-light">실시간 시장 동향</h3>
             </div>
-            <div 
-              className="card-body p-0" 
-              style={{ height: '550px' }}
-              dangerouslySetInnerHTML={{
-                __html: `
-                  <div class="tradingview-widget-container">
-                    <div class="tradingview-widget-container__widget"></div>
-                    <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-timeline.js" async>
-                    {
-                      "feedMode": "all_symbols",
-                      "isTransparent": false,
-                      "displayMode": "regular",
-                      "width": "100%",
-                      "height": 550,
-                      "colorTheme": "dark",
-                      "locale": "en"
-                    }
-                    </script>
-                  </div>
-                `
-              }}
-            />
+            <div className="card-body p-0" style={{ height: '550px' }}>
+              <div className="tradingview-widget-container">
+                <div className="tradingview-widget-container__widget"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
