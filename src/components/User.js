@@ -1,12 +1,25 @@
 import React, { useState, useEffect } from 'react';
+import boardApi from '../api/boardApi';
+import { useNavigate } from 'react-router-dom';
 
 function User() {
+  const navigate = useNavigate();
   const [userInfo, setUserInfo] = useState({
-    email: 'user@example.com',
-    nickname: '홍길동',
+    email: '',
+    nickname: '',
     isSubscribed: false,
     subscriptionEndDate: null,
   });
+
+  const [myPosts, setMyPosts] = useState([]);
+  const [likedPosts, setLikedPosts] = useState([]);
+  const [postsPage, setPostsPage] = useState(0);
+  const [likedPostsPage, setLikedPostsPage] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [myPostsTotalPages, setMyPostsTotalPages] = useState(0);
+  const [likedPostsTotalPages, setLikedPostsTotalPages] = useState(0);
+  const [activeTab, setActiveTab] = useState('myPosts'); // 'myPosts' 또는 'likedPosts'
 
   // 임시 데이터
   const [favoriteStocks] = useState([
@@ -15,17 +28,40 @@ function User() {
     { name: '네이버', code: '035420', price: '215,000', change: '+2.1%' },
   ]);
 
-  const [myPosts] = useState([
-    { id: 1, title: '주식 시장 전망 분석', date: '2024-01-15', likes: 24, comments: 8 },
-    { id: 2, title: '테슬라 실적 리뷰', date: '2024-01-12', likes: 15, comments: 5 },
-    { id: 3, title: '코스피 전망', date: '2024-01-10', likes: 32, comments: 12 },
-  ]);
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        setLoading(true);
+        const email = localStorage.getItem('X-Auth-User');
+        const nickname = await boardApi.getNickname(email);
+        
+        setUserInfo(prev => ({
+          ...prev,
+          email: email || '',
+          nickname: nickname || '',
+        }));
 
-  const [myComments] = useState([
-    { id: 1, content: '좋은 분석이네요', postTitle: '2024년 시장 전망', date: '2024-01-15' },
-    { id: 2, content: '저도 동의합니다', postTitle: '반도체 산업 분석', date: '2024-01-14' },
-    { id: 3, content: '참고하겠습니다', postTitle: '투자 전략 공유', date: '2024-01-13' },
-  ]);
+        // 내가 쓴 글 가져오기
+        const postsData = await boardApi.getMyPosts(postsPage);
+        setMyPosts(postsData.content);
+        setMyPostsTotalPages(postsData.totalPages);
+
+        // 좋아요한 글 가져오기
+        const likedPostsData = await boardApi.getMyLikedPosts(likedPostsPage);
+        setLikedPosts(likedPostsData.content);
+        setLikedPostsTotalPages(likedPostsData.totalPages);
+
+        setError(null);
+      } catch (err) {
+        setError('데이터를 불러오는데 실패했습니다.');
+        console.error('Error fetching user data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, []);
 
   const handleSubscribe = () => {
     setUserInfo(prev => ({
@@ -35,6 +71,77 @@ function User() {
     }));
     alert('구독이 완료되었습니다!');
   };
+
+  // 게시글 클릭 핸들러
+  const handlePostClick = (assetId, postId) => {
+    navigate(`/assets/${assetId}/posts/${postId}`);
+  };
+
+  // 게시글 목록 렌더링
+  const renderPosts = (posts, title, currentPage, totalPages, setPage) => (
+    <div className="list-group list-group-flush">
+      <h5 className="mb-3">{title}</h5>
+      {posts.map(post => (
+        <div 
+          key={post.id} 
+          className="list-group-item bg-dark border-secondary cursor-pointer"
+          onClick={() => handlePostClick(post.assetId, post.id)}
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="d-flex justify-content-between align-items-center">
+            <h6 className="mb-1 text-light">{post.title}</h6>
+            <small className="text-secondary">
+              {new Date(post.createdAt).toLocaleDateString()}
+            </small>
+          </div>
+          <div className="d-flex justify-content-between align-items-center">
+            <small className="text-secondary">
+              조회 {post.viewCount} · 좋아요 {post.likeCount}
+            </small>
+          </div>
+        </div>
+      ))}
+      
+      {/* 페이지네이션 */}
+      {totalPages > 1 && (
+        <nav className="mt-3">
+          <ul className="pagination justify-content-center">
+            <li className={`page-item ${currentPage === 0 ? 'disabled' : ''}`}>
+              <button
+                className="page-link bg-dark text-light"
+                onClick={() => setPage(prev => prev - 1)}
+                disabled={currentPage === 0}
+              >
+                이전
+              </button>
+            </li>
+            {[...Array(totalPages)].map((_, index) => (
+              <li key={index} className={`page-item ${currentPage === index ? 'active' : ''}`}>
+                <button
+                  className="page-link bg-dark text-light"
+                  onClick={() => setPage(index)}
+                >
+                  {index + 1}
+                </button>
+              </li>
+            ))}
+            <li className={`page-item ${currentPage >= totalPages - 1 ? 'disabled' : ''}`}>
+              <button
+                className="page-link bg-dark text-light"
+                onClick={() => setPage(prev => prev + 1)}
+                disabled={currentPage >= totalPages - 1}
+              >
+                다음
+              </button>
+            </li>
+          </ul>
+        </nav>
+      )}
+    </div>
+  );
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>{error}</div>;
 
   return (
     <div className="container mt-5">
@@ -121,50 +228,36 @@ function User() {
             </div>
           </div>
 
-          {/* 내가 쓴 글 */}
+          {/* 게시글 목록 카드 수정 */}
           <div className="card bg-dark text-light">
-          <div className="card-header bg-dark border-secondary d-flex justify-content-between align-items-center">
-              <h4 className="mb-0">내 활동</h4>
+            <div className="card-header bg-dark border-secondary">
+              <ul className="nav nav-tabs card-header-tabs">
+                <li className="nav-item">
+                  <button
+                    className={`nav-link ${activeTab === 'myPosts' ? 'active text-light' : 'text-secondary'}`}
+                    onClick={() => setActiveTab('myPosts')}
+                    style={{ backgroundColor: activeTab === 'myPosts' ? '#343a40' : 'transparent', border: 'none' }}
+                  >
+                    내가 쓴 글
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button
+                    className={`nav-link ${activeTab === 'likedPosts' ? 'active text-light' : 'text-secondary'}`}
+                    onClick={() => setActiveTab('likedPosts')}
+                    style={{ backgroundColor: activeTab === 'likedPosts' ? '#343a40' : 'transparent', border: 'none' }}
+                  >
+                    좋아요한 글
+                  </button>
+                </li>
+              </ul>
             </div>
             <div className="card-body">
-              <div className="row">
-                {/* 내가 쓴 글 */}
-                <div className="col-md-6">
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <h5 className="mb-0">내가 쓴 글</h5>
-                    <button className="btn btn-sm btn-outline-primary">더보기</button>
-                  </div>
-                  <div className="list-group list-group-flush">
-                    {myPosts.map(post => (
-                      <div key={post.id} className="list-group-item bg-dark border-secondary">
-                        <div className="d-flex justify-content-between align-items-center">
-                          <h6 className="mb-1 text-light">{post.title}</h6>
-                          <small className="text-secondary">{post.date}</small>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 내가 쓴 댓글 */}
-                <div className="col-md-6">
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <h5 className="mb-0">내가 쓴 댓글</h5>
-                    <button className="btn btn-sm btn-outline-primary">더보기</button>
-                  </div>
-                  <div className="list-group list-group-flush">
-                    {myComments.map(comment => (
-                      <div key={comment.id} className="list-group-item bg-dark border-secondary">
-                        <div className="d-flex justify-content-between align-items-center mb-1">
-                          <small className="text-secondary">{comment.postTitle}</small>
-                          <small className="text-secondary">{comment.date}</small>
-                        </div>
-                        <p className="mb-0 text-light">{comment.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              {activeTab === 'myPosts' ? (
+                renderPosts(myPosts, '내가 쓴 글', postsPage, myPostsTotalPages, setPostsPage)
+              ) : (
+                renderPosts(likedPosts, '좋아요한 글', likedPostsPage, likedPostsTotalPages, setLikedPostsPage)
+              )}
             </div>
           </div>
         </div>

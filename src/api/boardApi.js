@@ -2,13 +2,6 @@ import axios from 'axios';
 
 const BASE_URL = 'http://localhost:8080';
 
-// JWT 토큰과 사용자 정보를 가져오는 함수
-const getAuthHeaders = () => {
-  const accessToken = localStorage.getItem('accessToken');
-  const authUser = localStorage.getItem('X-Auth-User');
-  return { accessToken, authUser };
-};
-
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
   timeout: 5000,
@@ -22,7 +15,8 @@ const axiosInstance = axios.create({
 // 요청 인터셉터
 axiosInstance.interceptors.request.use(
   config => {
-    const { accessToken, authUser } = getAuthHeaders();
+    const accessToken = localStorage.getItem('accessToken');
+    const authUser = localStorage.getItem('X-Auth-User');
     if (accessToken) {
       config.headers['Authorization'] = accessToken;
     }
@@ -203,7 +197,44 @@ const boardApi = {
   isCurrentUserAuthor: (authorEmail) => {
     const currentUserEmail = localStorage.getItem('X-Auth-User');
     return String(currentUserEmail) === String(authorEmail);
-  }
+  },
+
+  // 내가 작성한 게시글 목록 조회
+  getMyPosts: async (page = 0, size = 10) => {
+    try {
+      const response = await axiosInstance.get('/api/users/me/posts', {
+        params: { page, size }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('getMyPosts Error:', error);
+      throw error;
+    }
+  },
+
+  // 내가 좋아요한 게시글 목록 조회
+  getMyLikedPosts: async (page = 0, size = 10) => {
+    try {
+      const response = await axiosInstance.get('/api/users/me/liked-posts', {
+        params: { page, size }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('getMyLikedPosts Error:', error);
+      throw error;
+    }
+  },
+
+  // 닉네임 조회 - 헤더의 토큰으로 사용자 확인
+  getNickname: async () => {
+    try {
+      const response = await axiosInstance.get('/user/nickname');
+      return response.data;
+    } catch (error) {
+      console.error('getNickname Error:', error);
+      return null;
+    }
+  },
 };
 
 export default boardApi;

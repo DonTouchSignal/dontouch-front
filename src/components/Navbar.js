@@ -1,25 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FaBell } from 'react-icons/fa';
+import boardApi from '../api/boardApi';
 
 function Navbar() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState('');
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [userNickname, setUserNickname] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // localStorage에서 인증 정보 확인
-    const checkLoginStatus = () => {
+    const checkLoginStatus = async () => {
       const accessToken = localStorage.getItem('accessToken');
       const authUser = localStorage.getItem('X-Auth-User');
       
       if (accessToken && authUser) {
         setIsLoggedIn(true);
         setUsername(authUser);
+        try {
+          const nickname = await boardApi.getNickname();
+          if (nickname) {
+            setUserNickname(nickname);
+          }
+        } catch (error) {
+          console.error('Error fetching nickname:', error);
+        }
       } else {
         setIsLoggedIn(false);
         setUsername('');
+        setUserNickname('');
       }
+      setLoading(false);
     };
 
     checkLoginStatus();
@@ -33,6 +45,7 @@ function Navbar() {
     
     setIsLoggedIn(false);
     setUsername('');
+    setUserNickname('');
     
     // 홈페이지로 이동
     window.location.href = '/';
@@ -85,9 +98,13 @@ function Navbar() {
             {isLoggedIn ? (
               <>
                 <li className="nav-item">
-                  <span className="nav-link">
-                    <span className="text-light">{username}</span>님 환영합니다
-                  </span>
+                  {loading ? (
+                    <span className="nav-link">로딩중...</span>
+                  ) : (
+                    <span className="nav-link">
+                      <span className="text-light">{userNickname}</span>님 환영합니다
+                    </span>
+                  )}
                 </li>
                 <li className="nav-item">
                   <Link to={`/users/${username}`} 

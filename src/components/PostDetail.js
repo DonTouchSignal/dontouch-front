@@ -17,6 +17,8 @@ function PostDetail() {
   const [editedContent, setEditedContent] = useState('');
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentContent, setEditingCommentContent] = useState('');
+  const [authorNickname, setAuthorNickname] = useState('');
+  const [commentNicknames, setCommentNicknames] = useState({});
 
   const currentUserEmail = localStorage.getItem('X-Auth-User');
 
@@ -44,10 +46,39 @@ function PostDetail() {
     }
   }, [assetId, postId]);
 
+  useEffect(() => {
+    const fetchNicknames = async () => {
+      if (post) {
+        const nickname = await boardApi.getNickname(post.userEmail);
+        setAuthorNickname(nickname);
+      }
+    };
+    fetchNicknames();
+  }, [post]);
+
+  useEffect(() => {
+    const fetchCommentNicknames = async () => {
+      const nicknames = {};
+      for (const comment of comments) {
+        if (!commentNicknames[comment.userEmail]) {
+          const nickname = await boardApi.getNickname(comment.userEmail);
+          nicknames[comment.userEmail] = nickname;
+        }
+      }
+      setCommentNicknames(prev => ({ ...prev, ...nicknames }));
+    };
+
+    if (comments.length > 0) {
+      fetchCommentNicknames();
+    }
+  }, [comments]);
+
   const fetchPost = async () => {
     try {
       const data = await boardApi.getPost(assetId, postId);
-      setPost(data);
+      // 게시글 작성자의 닉네임 즉시 조회
+      const nickname = await boardApi.getNickname();
+      setPost({ ...data, nickname });
       setEditedTitle(data.title);
       setEditedContent(data.content);
       setError(null);
@@ -61,13 +92,15 @@ function PostDetail() {
     try {
       const data = await boardApi.getComments(postId, commentPage);
       
-      // 데이터가 비어있고 현재 페이지가 0이 아닌 경우
-      if (data.content.length === 0 && commentPage > 0) {
-        setCommentPage(prev => prev - 1); // 이전 페이지로 이동
-        return; // 여기서 함수 종료
-      }
-
-      setComments(data.content);
+      // 댓글 데이터를 가져온 후 즉시 닉네임 조회
+      const commentsWithNicknames = await Promise.all(
+        data.content.map(async (comment) => {
+          const nickname = await boardApi.getNickname();
+          return { ...comment, nickname };
+        })
+      );
+      
+      setComments(commentsWithNicknames);
       setTotalCommentPages(data.totalPages);
       setError(null);
     } catch (err) {
@@ -244,7 +277,7 @@ function PostDetail() {
               <h2 className="card-title">{post.title}</h2>
               <div className="d-flex justify-content-between mb-3">
                 <div>
-                  <span className="text-secondary me-3">작성자: {post.userEmail}</span>
+                  <span className="text-secondary me-3">작성자: {post.nickname || post.userEmail}</span>
                   <span className="text-secondary me-3">조회수: {post.viewCount}</span>
                   <span className="text-secondary">좋아요: {post.likeCount}</span>
                 </div>
@@ -348,7 +381,7 @@ function PostDetail() {
               ) : (
                 <>
                   <div className="d-flex justify-content-between align-items-center mb-2">
-                    <strong>{comment.userEmail}</strong>
+                    <strong>{comment.nickname || comment.userEmail}</strong>
                     <small className="text-secondary">
                       {new Date(comment.createdAt).toLocaleString()}
                     </small>

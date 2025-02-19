@@ -9,16 +9,43 @@ function BoardList() {
   const [error, setError] = useState(null);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [userNicknames, setUserNicknames] = useState({});
 
   useEffect(() => {
     fetchPosts();
   }, [assetId, page]);
 
+  useEffect(() => {
+    const fetchNicknames = async () => {
+      const nicknames = {};
+      for (const post of posts) {
+        if (!userNicknames[post.userEmail]) {
+          const nickname = await boardApi.getNickname(post.userEmail);
+          nicknames[post.userEmail] = nickname;
+        }
+      }
+      setUserNicknames(prev => ({ ...prev, ...nicknames }));
+    };
+
+    if (posts.length > 0) {
+      fetchNicknames();
+    }
+  }, [posts]);
+
   const fetchPosts = async () => {
     try {
       setLoading(true);
       const response = await boardApi.getPosts(assetId, page);
-      setPosts(response.content);
+      
+      // 게시글 데이터를 가져온 후 즉시 닉네임 조회
+      const postsWithNicknames = await Promise.all(
+        response.content.map(async (post) => {
+          const nickname = await boardApi.getNickname();
+          return { ...post, nickname };
+        })
+      );
+      
+      setPosts(postsWithNicknames);
       setTotalPages(response.totalPages);
       setError(null);
     } catch (err) {
@@ -76,7 +103,9 @@ function BoardList() {
                         {post.title}
                       </Link>
                     </td>
-                    <td className="text-center">{post.userEmail}</td>
+                    <td className="text-center">
+                      {post.nickname || post.userEmail}
+                    </td>
                     <td className="text-center">{new Date(post.createdAt).toLocaleString()}</td>
                     <td className="text-center">{post.viewCount}</td>
                     <td className="text-center">{post.likeCount}</td>
