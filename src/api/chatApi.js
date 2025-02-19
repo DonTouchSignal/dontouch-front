@@ -2,17 +2,35 @@ import axios from 'axios';
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 
-
 const BASE_URL = 'http://localhost:8086';
 
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
   timeout: 5000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
-  withCredentials: true
+    'Accept': 'application/json'
   }
 });
+
+// 요청 인터셉터 추가
+axiosInstance.interceptors.request.use(
+  config => {
+    const accessToken = localStorage.getItem('accessToken');
+    const authUser = localStorage.getItem('X-Auth-User');
+    if (accessToken) {
+      config.headers['Authorization'] = accessToken;
+    }
+    if (authUser) {
+      config.headers['X-Auth-User'] = authUser;
+    }
+    return config;
+  },
+  error => {
+    return Promise.reject(error);
+  }
+);
 
 class ChatApi {
   constructor() {
@@ -34,6 +52,9 @@ class ChatApi {
 
   // WebSocket 연결
   connectWebSocket = (onConnect, onError) => {
+    const accessToken = localStorage.getItem('accessToken');
+    const authUser = localStorage.getItem('X-Auth-User');
+
     const client = new Client({
       webSocketFactory: () => new SockJS(`${BASE_URL}/ws`),
       debug: function (str) {
@@ -43,7 +64,8 @@ class ChatApi {
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
       connectHeaders: {
-        'X-XSRF-TOKEN': 'null'  // CSRF 토큰 무시
+        'Authorization': accessToken || 'null',
+        'X-Auth-User': authUser || 'null'
       }
     });
 
@@ -83,16 +105,22 @@ class ChatApi {
   sendMessage = async (message) => {
     if (!this.stompClient?.active) return;
 
+    const authUser = localStorage.getItem('X-Auth-User');
+    
     const messageData = {
       message: message,
-      guest: true,
-      nickName: null,
-      sendAt: new Date().toISOString()
+      guest: !authUser,  // 로그인 상태에 따라 guest 여부 결정
+      nickName: null,    // 서버에서 처리하도록 null로 전송
+      sendAt: new Date().toLocaleString('sv').replace(' ', 'T') + '.000Z'
     };
 
     this.stompClient.publish({
       destination: '/app/message',
-      body: JSON.stringify(messageData)
+      body: JSON.stringify(messageData),
+      headers: {
+        'Authorization': localStorage.getItem('accessToken') || 'null',
+        'X-Auth-User': authUser || 'null'
+      }
     });
 
     return messageData;

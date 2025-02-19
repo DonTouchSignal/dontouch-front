@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import chatApi from '../api/chatApi';
 import newsApi from '../api/newsApi';
 import { chatStyles } from '../styles/ChatStyles';
+import '../styles/Chat.css';
 
 function Home() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -85,15 +86,7 @@ function Home() {
     if (!currentMessage.trim()) return;
     
     try {
-      const newMessage = {
-        message: currentMessage,
-        guest: true,
-        userId: null,
-        sendAt: new Date().toISOString()
-      };
-      
       await chatApi.sendMessage(currentMessage);
-      setMessages(prev => [...prev, newMessage]);
       setCurrentMessage('');
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -437,23 +430,23 @@ function Home() {
               <h3 className="card-title mb-0 text-light">실시간 채팅</h3>
               {connected && <span className="badge bg-success">Live</span>}
             </div>
-            <div className="card-body">
+            <div className="card-body p-3">
               <div 
-                className="chat-container rounded bg-darker p-3 mb-3" 
-                style={chatStyles.chatContainer}
+                className="chat-container" 
                 ref={chatContainerRef}
               >
                 {messages.length > 0 ? (
                   messages.map((msg, index) => (
-                    <div key={index} style={chatStyles.messageContainer}>
-                      <div className="d-flex justify-content-between mb-1">
+                    <div key={index} className="message-container" style={chatStyles.messageContainer}>
+                      <div style={chatStyles.messageHeader}>
                         <span style={chatStyles.username}>
-                          {msg.nickName ? `User ${msg.nickName}` : 'Guest'}
+                          {msg.nickName ? msg.nickName : 'Guest'}
                         </span>
                         <span style={chatStyles.timestamp}>
-                          {new Date(msg.sendAt).toLocaleTimeString([], {
+                          {new Date(msg.sendAt).toLocaleTimeString('ko-KR', {
                             hour: '2-digit',
-                            minute: '2-digit'
+                            minute: '2-digit',
+                            hour12: true
                           })}
                         </span>
                       </div>
@@ -463,13 +456,13 @@ function Home() {
                     </div>
                   ))
                 ) : (
-                  <div className="text-center text-secondary">
-                    <i className="bi bi-chat-dots fs-1 mb-2"></i>
+                  <div className="text-center text-secondary p-4">
+                    <i className="bi bi-chat-dots fs-2 mb-2"></i>
                     <p className="mb-0">채팅 내역이 없습니다</p>
                   </div>
                 )}
               </div>
-              <div className="input-group">
+              <div className="input-group mt-3">
                 <input
                   type="text"
                   className="form-control bg-dark text-light border-secondary"
