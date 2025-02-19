@@ -36,16 +36,7 @@ function BoardList() {
     try {
       setLoading(true);
       const response = await boardApi.getPosts(assetId, page);
-      
-      // 게시글 데이터를 가져온 후 즉시 닉네임 조회
-      const postsWithNicknames = await Promise.all(
-        response.content.map(async (post) => {
-          const nickname = await boardApi.getNickname();
-          return { ...post, nickname };
-        })
-      );
-      
-      setPosts(postsWithNicknames);
+      setPosts(response.content); // 닉네임이 이미 포함되어 있음
       setTotalPages(response.totalPages);
       setError(null);
     } catch (err) {
@@ -104,7 +95,7 @@ function BoardList() {
                       </Link>
                     </td>
                     <td className="text-center">
-                      {post.nickname || post.userEmail}
+                      {post.userNickname}
                     </td>
                     <td className="text-center">{new Date(post.createdAt).toLocaleString()}</td>
                     <td className="text-center">{post.viewCount}</td>

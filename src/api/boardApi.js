@@ -80,9 +80,17 @@ const boardApi = {
     }
   },
 
-  createPost: async (assetId, postData) => {
+  createPost: async (assetId, postData, imageFile) => {
     try {
-      const response = await axiosInstance.post(`/api/assets/${assetId}/posts`, postData);
+      let imageUrl = null;
+      if (imageFile) {
+        imageUrl = await boardApi.uploadImage(imageFile);
+      }
+
+      const response = await axiosInstance.post(`/api/assets/${assetId}/posts`, {
+        ...postData,
+        imageUrl
+      });
       return response.data;
     } catch (error) {
       console.error('createPost Error:', error);
@@ -90,9 +98,22 @@ const boardApi = {
     }
   },
 
-  updatePost: async (assetId, postId, postData) => {
-    const response = await axiosInstance.put(`/api/assets/${assetId}/posts/${postId}`, postData);
-    return response.data;
+  updatePost: async (assetId, postId, postData, imageFile) => {
+    try {
+      let imageUrl = postData.imageUrl;
+      if (imageFile) {
+        imageUrl = await boardApi.uploadImage(imageFile);
+      }
+
+      const response = await axiosInstance.put(`/api/assets/${assetId}/posts/${postId}`, {
+        ...postData,
+        imageUrl
+      });
+      return response.data;
+    } catch (error) {
+      console.error('updatePost Error:', error);
+      throw error;
+    }
   },
 
   deletePost: async (assetId, postId) => {
@@ -225,14 +246,32 @@ const boardApi = {
     }
   },
 
-  // 닉네임 조회 - 헤더의 토큰으로 사용자 확인
-  getNickname: async () => {
+  // 닉네임 조회 - 특정 사용자의 닉네임 조회
+  getNickname: async (email) => {
     try {
-      const response = await axiosInstance.get('/user/nickname');
+      const response = await axiosInstance.get(`/user/nickname?email=${email}`);
       return response.data;
     } catch (error) {
       console.error('getNickname Error:', error);
-      return null;
+      return email; // 에러 시 이메일 반환
+    }
+  },
+
+  // 이미지 업로드
+  uploadImage: async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await axiosInstance.post('/api/images/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data; // S3 URL 반환
+    } catch (error) {
+      console.error('uploadImage Error:', error);
+      throw error;
     }
   },
 };

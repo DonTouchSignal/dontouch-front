@@ -19,6 +19,7 @@ function PostDetail() {
   const [editingCommentContent, setEditingCommentContent] = useState('');
   const [authorNickname, setAuthorNickname] = useState('');
   const [commentNicknames, setCommentNicknames] = useState({});
+  const [imagePreview, setImagePreview] = useState(null);
 
   const currentUserEmail = localStorage.getItem('X-Auth-User');
 
@@ -76,9 +77,7 @@ function PostDetail() {
   const fetchPost = async () => {
     try {
       const data = await boardApi.getPost(assetId, postId);
-      // 게시글 작성자의 닉네임 즉시 조회
-      const nickname = await boardApi.getNickname();
-      setPost({ ...data, nickname });
+      setPost(data);
       setEditedTitle(data.title);
       setEditedContent(data.content);
       setError(null);
@@ -91,16 +90,7 @@ function PostDetail() {
   const fetchComments = async () => {
     try {
       const data = await boardApi.getComments(postId, commentPage);
-      
-      // 댓글 데이터를 가져온 후 즉시 닉네임 조회
-      const commentsWithNicknames = await Promise.all(
-        data.content.map(async (comment) => {
-          const nickname = await boardApi.getNickname();
-          return { ...comment, nickname };
-        })
-      );
-      
-      setComments(commentsWithNicknames);
+      setComments(data.content);
       setTotalCommentPages(data.totalPages);
       setError(null);
     } catch (err) {
@@ -217,6 +207,21 @@ function PostDetail() {
     return String(currentUserEmail) === String(authorEmail);
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB 제한
+        setError('이미지 크기는 5MB를 초과할 수 없습니다.');
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        setError('이미지 파일만 업로드 가능합니다.');
+        return;
+      }
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
   if (loading) return (
     <div className="container py-4 text-light">
       <div className="text-center">
@@ -242,7 +247,7 @@ function PostDetail() {
       <div className="card bg-dark text-light mb-4">
         <div className="card-body">
           {isEditing ? (
-            // 게시글 수정 폼
+            // 수정 폼
             <form onSubmit={(e) => { e.preventDefault(); handleEditPost(); }}>
               <div className="mb-3">
                 <input
@@ -259,6 +264,26 @@ function PostDetail() {
                   value={editedContent}
                   onChange={(e) => setEditedContent(e.target.value)}
                 />
+              </div>
+              <div className="mb-3">
+                <label htmlFor="image" className="form-label">이미지 첨부</label>
+                <input
+                  type="file"
+                  className="form-control bg-dark text-light"
+                  id="image"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
+                {(imagePreview || post.imageUrl) && (
+                  <div className="mt-2">
+                    <img
+                      src={imagePreview || post.imageUrl}
+                      alt="Preview"
+                      className="img-thumbnail"
+                      style={{ maxHeight: '200px' }}
+                    />
+                  </div>
+                )}
               </div>
               <div className="d-flex gap-2">
                 <button type="submit" className="btn btn-primary">저장</button>
@@ -277,7 +302,7 @@ function PostDetail() {
               <h2 className="card-title">{post.title}</h2>
               <div className="d-flex justify-content-between mb-3">
                 <div>
-                  <span className="text-secondary me-3">작성자: {post.nickname || post.userEmail}</span>
+                  <span className="text-secondary me-3">작성자: {post.userNickname}</span>
                   <span className="text-secondary me-3">조회수: {post.viewCount}</span>
                   <span className="text-secondary">좋아요: {post.likeCount}</span>
                 </div>
@@ -286,6 +311,16 @@ function PostDetail() {
                 </span>
               </div>
               <hr className="border-secondary" />
+              {post.imageUrl && (
+                <div className="mb-3">
+                  <img
+                    src={post.imageUrl}
+                    alt="Post"
+                    className="img-fluid"
+                    style={{ maxHeight: '400px' }}
+                  />
+                </div>
+              )}
               <p className="card-text">{post.content}</p>
               <div className="d-flex justify-content-between align-items-center mt-4">
                 <button
@@ -381,7 +416,7 @@ function PostDetail() {
               ) : (
                 <>
                   <div className="d-flex justify-content-between align-items-center mb-2">
-                    <strong>{comment.nickname || comment.userEmail}</strong>
+                    <strong>{comment.userNickname}</strong>
                     <small className="text-secondary">
                       {new Date(comment.createdAt).toLocaleString()}
                     </small>
