@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import TradingViewWidget from './TradingViewWidget';
+import assetApi from '../api/assetApi';
 
 function AssetDetail() {
   const { assetId } = useParams();
@@ -10,29 +12,79 @@ function AssetDetail() {
   });
   const [showAlertForm, setShowAlertForm] = useState(false);
 
-  // 임시 데이터
+  /**  심볼을 기반으로 TradingView 마켓 결정 */
+  const convertToTradingViewSymbol = (symbol) => {
+    if (!symbol) return null;
+
+    if (symbol.includes("-")) {
+        const parts = symbol.split("-"); // '-' 기준으로 나누기
+        if (parts.length === 2) {
+            const base = parts[1]; // BTC, ETH, INJ 등
+            const quote = parts[0]; // KRW, USDT, BTC 등
+            return `UPBIT:${base}${quote}`; //  예: USDT-INJ → UPBIT:INJUSDT
+        }
+    } 
+    if (/^\d{6}$/.test(symbol)) {
+        return `KRX:${symbol}`; //  국내주식 (6자리 숫자)
+    }
+    return `NASDAQ:${symbol}`; //  나스닥 (알파벳만 존재)
+};
+
+
+  /**  API 호출 및 asset 정보 설정 */
+  const fetchAssetDetail = async () => {
+    try {
+      const response = await assetApi.getLiveMarketData(assetId);
+      console.log("📡 API 응답 데이터:", response); // ✅ 응답 확인
+      
+      if (!response || !response.symbol) {
+        console.warn("🚨 유효한 자산 데이터 없음");
+        setAsset({ id: "N/A", name: "데이터 없음", code: "-", currentPrice: "N/A", change: "0%" });
+        return;
+      }
+
+      // 심볼을 기반으로 TradingView 심볼 자동 설정
+      const tradingViewSymbol = convertToTradingViewSymbol(response.symbol);
+      console.log("🎯 TradingView 심볼:", tradingViewSymbol);
+
+      setAsset({
+        id: response.symbol,
+        name: response.koreanName || response.englishName ,
+        code: response.symbol,
+        currentPrice: response.price || "N/A",
+        change: response.changeRate ? `${(response.changeRate * 100).toFixed(2)}%` : "0%",
+        tradingViewSymbol
+      });
+    } catch (error) {
+      console.error("❌ Failed to fetch asset details:", error);
+    }
+  };
+
   useEffect(() => {
-    // TODO: API 연동
-    setAsset({
-      id: assetId,
-      name: '삼성전자',
-      code: '005930',
-      currentPrice: '75,000',
-      change: '+2.5%',
-      description: '삼성전자는 한국의 대표적인 전자 기업으로...',
-      // 차트 데이터도 여기에 추가될 예정
-    });
+    fetchAssetDetail();
   }, [assetId]);
 
-  const handleAlertSubmit = (e) => {
+  const handleAlertSubmit = async (e) => {
     e.preventDefault();
-    // TODO: API 연동
-    console.log('가격 알림 설정:', {
-      assetId,
-      ...priceAlert
-    });
-    setShowAlertForm(false);
+    if (!asset) return;
+  
+    const userEmail = localStorage.getItem('X-Auth-User'); 
+  
+    try {
+      //  관심종목 추가
+      await assetApi.addToWatchlist(userEmail, asset.code);
+  
+      // 목표가 설정
+      //  숫자로 변환해서 보내기
+    await assetApi.setTargetPrice(userEmail, asset.code, Number(priceAlert.targetPrice));
+  
+      console.log(`✅ ${asset.code} 관심종목 추가 + 목표가 ${priceAlert.targetPrice} 설정 완료`);
+      setShowAlertForm(false);
+    } catch (error) {
+      console.error("❌ 가격 알림 설정 실패:", error);
+    }
   };
+  
 
   if (!asset) {
     return <div className="container py-4 text-light">Loading...</div>;
@@ -103,19 +155,17 @@ function AssetDetail() {
         <div className="card-body">
           <h3 className="card-title mb-3 text-white fw-bold">차트</h3>
           <div className="bg-darker rounded" style={{ height: '400px', background: '#1a1a1a' }}>
-            {/* TODO: 차트 컴포넌트 추가 */}
-            <div className="d-flex justify-content-center align-items-center h-100 text-secondary">
-              차트가 들어갈 영역
-            </div>
-          </div>
-        </div>
-      </div>
+            {/*  디버깅 로그 */}
+            {console.log("🔥 현재 asset 데이터:", asset)}
+            {console.log("🎯 TradingView 심볼:", asset.tradingViewSymbol)}
 
-      {/* 종목 설명 */}
-      <div className="card bg-dark border-secondary mb-4">
-        <div className="card-body">
-          <h3 className="card-title mb-3 text-white fw-bold">종목 설명</h3>
-          <p className="text-light">{asset.description}</p>
+            {/*  차트 위젯 렌더링 */}
+            {asset.tradingViewSymbol ? (
+              <TradingViewWidget symbol={asset.tradingViewSymbol} />
+            ) : (
+              <p className="text-center text-light">⚠️ 차트 데이터 없음</p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -143,4 +193,4 @@ function AssetDetail() {
   );
 }
 
-export default AssetDetail; 
+export default AssetDetail;

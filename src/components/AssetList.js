@@ -1,149 +1,202 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import assetApi from "../api/assetApi";
 
 function AssetList() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || 'domestic');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState(searchParams.get("category") || "domestic");
+  const [assets, setAssets] = useState([]);
+  const [sockets, setSockets] = useState([]); //  useState로 초기화
 
-  // URL 파라미터가 변경될 때 카테고리 업데이트
+
   useEffect(() => {
-    const category = searchParams.get('category');
-    if (category) {
-      setSelectedCategory(category);
-    }
-  }, [searchParams]);
+    fetchStocksByCategory(); //  페이지 로드 시 API 호출
+  }, [selectedCategory]);
 
-  // 카테고리 변경 시 URL 업데이트
+  useEffect(() => {
+    if (searchTerm) {
+      fetchSearchedStocks();
+    } else {
+      fetchStocksByCategory();
+    }
+  }, [searchTerm, selectedCategory]);
+
+  //  카테고리에 맞는 종목 API 호출
+  const fetchStocksByCategory = async () => {
+    try {
+      let response;
+      if (selectedCategory === "domestic") {
+        response = await assetApi.getDomesticStocks();
+      } else if (selectedCategory === "overseas") {
+        response = await assetApi.getOverseasStocks();
+      } else if (selectedCategory === "crypto") {
+        response = await assetApi.getCryptoStocks();
+      }
+      setAssets(response); // ✅ 가져온 데이터를 상태에 저장
+      subscribeToLivePrices(response || []);
+    } catch (error) {
+      console.error("종목 리스트 가져오기 실패:", error);
+    }
+  };
+
+  const subscribeToLivePrices = () => {
+  if (selectedCategory !== "crypto") return;
+
+  // 기존 웹소켓 연결 종료
+  sockets.forEach((socket) => socket.close());
+  setSockets([]);
+
+  //  Redis 기반 실시간 암호화폐 데이터 가져오기
+  const interval = setInterval(async () => {
+    try {
+      const liveData = await assetApi.getLiveCryptoStocks(); 
+      if (liveData && Array.isArray(liveData)) {
+        setAssets((prevAssets) =>
+          prevAssets.map((asset) => {
+            const updatedData = liveData.find((data) => data.symbol === asset.symbol);
+            return updatedData
+              ? { 
+                  ...asset, 
+                  price: parseFloat(updatedData.price).toFixed(8),
+                  change: updatedData.change ? `${parseFloat(updatedData.change).toFixed(8)}%` : "0%"
+                }
+              : asset;
+          })
+        );
+      }
+    } catch (error) {
+      //console.error("❌ 암호화폐 실시간 데이터 업데이트 실패:", error);
+    }
+  }, 10000); //  10초마다 업데이트
+
+  setSockets([{ close: () => clearInterval(interval) }]); // polling 종료 함수
+};
+
+
+  //  검색 API 호출
+  const fetchSearchedStocks = async () => {
+    try {
+      const response = await assetApi.searchStocks(searchTerm);
+      setAssets(response);
+    } catch (error) {
+      console.error("종목 검색 실패:", error);
+    }
+  };
+
+  const fetchLivePrice = async (symbol) => {
+    try {
+      const response = await assetApi.getLiveMarketData(symbol);
+      console.log(`📡 실시간 가격 데이터 (${symbol}):`, response); //  API 응답 확인
+      return response;
+    } catch (error) {
+      console.error(`❌ Failed to fetch live market data for ${symbol}:`, error);
+      return null;
+    }
+  };
+  
+  
+  
+
+  //  카테고리 변경 함수
   const handleCategoryChange = (category) => {
     setSelectedCategory(category);
     setSearchParams({ category });
   };
 
-  // 임시 데이터 - id를 숫자로 변경
-  const assets = {
-    domestic: [
-      { id: 1, name: '삼성전자', code: '005930', price: '75,000', change: '+2.5%' },
-      { id: 2, name: 'SK하이닉스', code: '000660', price: '135,000', change: '-1.8%' },
-      { id: 3, name: '현대차', code: '005380', price: '210,000', change: '+3.2%' }
-    ],
-    overseas: [
-      { id: 4, name: 'Apple Inc.', code: 'AAPL', price: '$182.52', change: '+1.5%' },
-      { id: 5, name: 'Microsoft', code: 'MSFT', price: '$405.12', change: '+0.8%' },
-      { id: 6, name: 'Alphabet', code: 'GOOGL', price: '$142.65', change: '-0.5%' }
-    ],
-    crypto: [
-      { id: 7, name: 'Bitcoin', code: 'BTC', price: '65,000,000', change: '+5.2%' },
-      { id: 8, name: 'Ethereum', code: 'ETH', price: '3,500,000', change: '-2.1%' },
-      { id: 9, name: 'Ripple', code: 'XRP', price: '800', change: '+1.8%' }
-    ]
-  };
-
-  const filteredAssets = assets[selectedCategory].filter(asset =>
-    asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    asset.code.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   return (
     <div className="container py-4 text-light">
-      {/* 카테고리 선택 버튼 수정 */}
+      {/*  카테고리 버튼 */}
       <div className="row mb-4">
         <div className="col">
           <div className="btn-group w-100">
-            <button
-              className={`btn ${selectedCategory === 'domestic' ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={() => handleCategoryChange('domestic')}
-            >
+            <button className={`btn ${selectedCategory === "domestic" ? "btn-primary" : "btn-outline-primary"}`} onClick={() => handleCategoryChange("domestic")}>
               국내주식
             </button>
-            <button
-              className={`btn ${selectedCategory === 'overseas' ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={() => handleCategoryChange('overseas')}
-            >
+            <button className={`btn ${selectedCategory === "overseas" ? "btn-primary" : "btn-outline-primary"}`} onClick={() => handleCategoryChange("overseas")}>
               해외주식
             </button>
-            <button
-              className={`btn ${selectedCategory === 'crypto' ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={() => handleCategoryChange('crypto')}
-            >
+            <button className={`btn ${selectedCategory === "crypto" ? "btn-primary" : "btn-outline-primary"}`} onClick={() => handleCategoryChange("crypto")}>
               암호화폐
             </button>
           </div>
         </div>
       </div>
 
-      {/* 검색바 */}
+      {/*  검색창 */}
       <div className="row mb-4">
         <div className="col">
           <div className="input-group">
             <input
               type="text"
               className="form-control bg-dark text-light border-secondary"
-              placeholder="종목명 또는 종목코드 검색..."
+              placeholder="검색하세요"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && fetchSearchedStocks()} //  엔터키 검색
             />
-            <button className="btn btn-outline-primary" type="button">
-              검색
+            <button className="btn btn-outline-primary" type="button" onClick={fetchSearchedStocks}>
+              🔍
             </button>
           </div>
         </div>
       </div>
 
-      {/* 종목 목록 */}
+      {/*  종목 리스트 */}
       <div className="row">
         <div className="col">
-          <div className="card bg-dark border-secondary">
-            <div className="card-body">
-              <div className="table-responsive">
-                <table className="table table-dark table-hover">
-                  <thead>
-                    <tr>
-                      <th>종목명</th>
-                      <th>종목코드</th>
-                      <th className="text-end">현재가</th>
-                      <th className="text-end">등락률</th>
-                      <th className="text-center">상세/토론</th>
+          <div className="table-responsive">
+            <table className="table table-dark table-hover">
+              <thead>
+                <tr>
+                  <th>종목명</th>
+                  <th>종목코드</th>
+                  <th className="text-end">현재가</th>
+                  <th className="text-end">등락률</th>
+                  <th className="text-center">상세/토론</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.isArray(assets) && assets.length > 0 ? (
+                  assets.map((asset) => (
+                    <tr key={asset.symbol}>
+                      <td>
+                        <Link to={`/assets/${asset.symbol}`} className="text-light">
+                          {asset.korean_name || asset.english_name}
+                        </Link>
+                      </td>
+                      <td>{asset.symbol}</td>
+                      <td className="text-end">
+                        {asset.price !== undefined 
+                          ? (asset.price < 1 
+                              ? parseFloat(asset.price).toFixed(8)  //  1 미만일 때 소수점 8자리 유지
+                              : parseFloat(asset.price).toFixed(2)  //  기본 소수점 2자리 유지
+                            ) + "원"
+                          : "-"}
+                      </td>
+
+                      <td className={`text-end ${asset.changeRate >= 0 ? "text-success" : "text-danger"}`}>
+                        {asset.changeRate !== undefined 
+                          ? `${(parseFloat(asset.changeRate) * 100).toFixed(2)}%` //  등락률을 퍼센트 변환
+                          : "0%"}
+                      </td>
+
+
+                      <td className="text-center">
+                        <Link to={`/assets/${asset.symbol}`} className="btn btn-sm btn-outline-primary">상세</Link>
+                        <Link to={`/assets/${asset.symbol}/posts`} className="btn btn-sm btn-outline-primary">토론방</Link>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {filteredAssets.map((asset) => (
-                      <tr key={asset.id}>
-                        <td>
-                          <Link 
-                            to={`/assets/${asset.id}`}
-                            className="text-light text-decoration-none"
-                          >
-                            {asset.name}
-                          </Link>
-                        </td>
-                        <td>{asset.code}</td>
-                        <td className="text-end">{asset.price}</td>
-                        <td className={`text-end ${asset.change.startsWith('+') ? 'text-success' : 'text-danger'}`}>
-                          {asset.change}
-                        </td>
-                        <td className="text-center">
-                          <div className="btn-group">
-                            <Link 
-                              to={`/assets/${asset.id}`}
-                              className="btn btn-sm btn-outline-primary"
-                            >
-                              상세
-                            </Link>
-                            <Link 
-                              to={`/assets/${asset.id}/posts`}
-                              className="btn btn-sm btn-outline-primary"
-                            >
-                              토론방
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="text-center text-light">데이터 없음</td>
+                  </tr>
+                )}
+              </tbody>
+
+
+            </table>
           </div>
         </div>
       </div>
@@ -151,4 +204,4 @@ function AssetList() {
   );
 }
 
-export default AssetList; 
+export default AssetList;
