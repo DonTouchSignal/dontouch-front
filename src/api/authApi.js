@@ -4,7 +4,7 @@ const BASE_URL = 'http://localhost:8080';
 
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 5000,
+  timeout: 5000,  // 다시 5초로 변경
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -105,25 +105,118 @@ const authApi = {
       console.error('Check Login Status Error:', error);
       throw error;
     }
+  },
+
+  // 광고 표시 여부 확인
+  checkAdsShow: async () => {
+    try {
+      const response = await axiosInstance.get('/api/ads/show', {
+        headers: {
+          'X-Auth-User': localStorage.getItem('X-Auth-User'),
+          'Authorization': localStorage.getItem('accessToken')
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Check Ads Show Error:', error);
+      return true; // 에러 시 기본적으로 광고 표시
+    }
+  },
+
+  // 팝업 광고 정보 가져오기
+  getPopupAd: async () => {
+    try {
+      const response = await axiosInstance.get('/api/ads/popup', {
+        headers: {
+          'X-Auth-User': localStorage.getItem('X-Auth-User'),
+          'Authorization': localStorage.getItem('accessToken')
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Get Popup Ad Error:', error);
+      return null;
+    }
+  },
+
+  // 구독 처리
+  processSubscription: async () => {
+    try {
+      const response = await axiosInstance.post('/api/subscription/subscribe', null, {
+        headers: {
+          'X-Auth-User': localStorage.getItem('X-Auth-User'),
+          'Authorization': localStorage.getItem('accessToken')
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Subscription Error:', error);
+      throw error;
+    }
+  },
+
+  // 구독 상태 확인
+  checkSubscriptionStatus: async () => {
+    try {
+      const response = await axiosInstance.get('/api/subscription/status', {
+        headers: {
+          'X-Auth-User': localStorage.getItem('X-Auth-User'),
+          'Authorization': localStorage.getItem('accessToken')
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Check Subscription Status Error:', error);
+      return false; // 에러 시 기본적으로 미구독 상태 반환
+    }
+  },
+
+  // 구독 취소
+  cancelSubscription: async () => {
+    try {
+      const response = await axiosInstance.post('/api/subscription/unsubscribe', null, {
+        headers: {
+          'X-Auth-User': localStorage.getItem('X-Auth-User'),
+          'Authorization': localStorage.getItem('accessToken')
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Cancel Subscription Error:', error);
+      throw error;
+    }
   }
 };
 
 // axios 인터셉터 수정
 axiosInstance.interceptors.request.use(
   config => {
-    const token = localStorage.getItem('accessToken');
+    const accessToken = localStorage.getItem('accessToken');
     const authUser = localStorage.getItem('X-Auth-User');
-    
-    if (token) {
-      config.headers['accesstoken'] = token; // 헤더 이름 변경
+    if (accessToken) {
+      config.headers['Authorization'] = accessToken;
     }
     if (authUser) {
-      config.headers['x-auth-user'] = authUser;
+      config.headers['X-Auth-User'] = authUser;
     }
-    
     return config;
   },
   error => {
+    return Promise.reject(error);
+  }
+);
+
+// 응답 인터셉터 추가
+axiosInstance.interceptors.response.use(
+  response => {
+    return response;
+  },
+  error => {
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('X-Auth-User');
+      window.location.href = '/login';
+    }
     return Promise.reject(error);
   }
 );

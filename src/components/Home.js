@@ -4,6 +4,31 @@ import chatApi from '../api/chatApi';
 import newsApi from '../api/newsApi';
 import { chatStyles } from '../styles/ChatStyles';
 import '../styles/Chat.css';
+import authApi from '../api/authApi';
+
+// 광고 데이터를 상수로 정의
+const ADS_DATA = {
+  sidebar: [
+    {
+      imageUrl: "/images/ads/sidebar-ad1.jpg",
+      title: "투자 전략 강의",
+      description: "전문가와 함께하는 투자 분석",
+      link: "/premium/course"
+    },
+    {
+      imageUrl: "/images/ads/sidebar-ad2.jpg",
+      title: "프리미엄 구독",
+      description: "실시간 매매 신호",
+      link: "/subscription"
+    }
+  ],
+  popup: {
+    title: "특별 할인 이벤트",
+    content: "지금 구독하시면 첫 달 50% 할인!",
+    imageUrl: "/images/ads/popup-ad.jpg",
+    link: "/subscription/special"
+  }
+};
 
 function Home() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -15,6 +40,8 @@ function Home() {
   const [activeTab, setActiveTab] = useState('stock');
   const [showMoreNews, setShowMoreNews] = useState(false);
   const chatContainerRef = useRef(null);
+  const [showAds, setShowAds] = useState(true);
+  const [popupAd, setPopupAd] = useState(null);
 
   // 임시 데이터
   const trendingStocks = [
@@ -29,21 +56,6 @@ function Home() {
     { name: 'XRP', change: '+1.8%', price: '800' }
   ];
 
-  const adContents = [
-    {
-      imageUrl: "/ads/ad1.jpg",
-      title: "투자 전략 강의",
-      description: "전문가와 함께하는 투자 분석",
-      link: "#"
-    },
-    {
-      imageUrl: "/ads/ad2.jpg",
-      title: "프리미엄 구독",
-      description: "실시간 매매 신호",
-      link: "#"
-    }
-  ];
-
   useEffect(() => {
     const loadMessages = async () => {
       try {
@@ -51,6 +63,7 @@ function Home() {
         setMessages(data);
       } catch (error) {
         console.error('Error loading messages:', error);
+        // 에러가 발생해도 로그인 페이지로 리다이렉트하지 않음
       }
     };
     loadMessages();
@@ -156,31 +169,66 @@ function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    const checkAdsStatus = async () => {
+      try {
+        const userEmail = localStorage.getItem('X-Auth-User');
+        if (userEmail) {
+          // 구독 상태를 먼저 확인
+          const isSubscribed = await authApi.checkSubscriptionStatus();
+          
+          // 구독 중이 아닌 경우에만 광고 표시
+          if (!isSubscribed) {
+            const shouldShowAds = await authApi.checkAdsShow();
+            setShowAds(shouldShowAds);
+            
+            // 팝업 광고 표시 여부 확인
+            if (shouldShowAds) {
+              setPopupAd(ADS_DATA.popup);
+            }
+          } else {
+            setShowAds(false);
+            setPopupAd(null);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking ads status:', error);
+        setShowAds(true);
+      }
+    };
+
+    checkAdsStatus();
+  }, []);
+
   return (
     <div className="container-fluid py-4">
       <div className="row">
-        {/* 왼쪽 광고 사이드바 */}
-        <div className="col-lg-2">
-          <div className="sticky-top" style={{ top: '1rem' }}>
-            {adContents.map((ad, index) => (
-              <div key={index} className="mb-3">
-                <div className="card bg-dark border-secondary" style={{ width: '160px' }}>
-                  <img 
-                    src={ad.imageUrl} 
-                    alt={ad.title} 
-                    className="card-img-top"
-                    style={{ height: '120px', objectFit: 'cover' }}
-                  />
-                  <div className="card-body p-2">
-                    <h6 className="card-title text-light mb-1">{ad.title}</h6>
-                    <p className="card-text text-secondary small mb-2">{ad.description}</p>
-                    <a href={ad.link} className="btn btn-outline-primary btn-sm w-100">자세히 보기</a>
+        {/* 왼쪽 광고 사이드바 - 구독자에게는 표시하지 않음 */}
+        {showAds && (
+          <div className="col-lg-2">
+            <div className="sticky-top" style={{ top: '1rem' }}>
+              {ADS_DATA.sidebar.map((ad, index) => (
+                <div key={index} className="mb-3">
+                  <div className="card bg-dark border-secondary" style={{ width: '160px' }}>
+                    <img 
+                      src={ad.imageUrl} 
+                      alt={ad.title} 
+                      className="card-img-top"
+                      style={{ height: '120px', objectFit: 'cover' }}
+                    />
+                    <div className="card-body p-2">
+                      <h6 className="card-title text-light mb-1">{ad.title}</h6>
+                      <p className="card-text text-secondary small mb-2">{ad.description}</p>
+                      <Link to={ad.link} className="btn btn-outline-primary btn-sm w-100">
+                        자세히 보기
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
   
         {/* 메인 컨텐츠 영역 */}
         <div className="col-lg-7">
@@ -462,6 +510,32 @@ function Home() {
             </div>
           </div>
         </div>
+
+        {/* 팝업 광고 모달 */}
+        {popupAd && (
+          <div className="modal fade show" style={{ display: 'block' }}>
+            <div className="modal-dialog">
+              <div className="modal-content bg-dark">
+                <div className="modal-header border-secondary">
+                  <h5 className="modal-title text-light">{popupAd.title}</h5>
+                  <button type="button" className="btn-close" onClick={() => setPopupAd(null)}></button>
+                </div>
+                <div className="modal-body">
+                  <img src={popupAd.imageUrl} alt={popupAd.title} className="img-fluid mb-3" />
+                  <p className="text-light">{popupAd.content}</p>
+                </div>
+                <div className="modal-footer border-secondary">
+                  <Link to={popupAd.link} className="btn btn-primary">
+                    자세히 보기
+                  </Link>
+                  <button type="button" className="btn btn-secondary" onClick={() => setPopupAd(null)}>
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

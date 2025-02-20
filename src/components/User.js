@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import boardApi from '../api/boardApi';
 import { useNavigate } from 'react-router-dom';
+import authApi from '../api/authApi';
 
 function User() {
   const navigate = useNavigate();
@@ -35,10 +36,14 @@ function User() {
         const email = localStorage.getItem('X-Auth-User');
         const nickname = await boardApi.getNickname(email);
         
+        // 구독 상태 확인 추가
+        const isSubscribed = await authApi.checkSubscriptionStatus();
+        
         setUserInfo(prev => ({
           ...prev,
           email: email || '',
           nickname: nickname || '',
+          isSubscribed: isSubscribed
         }));
 
         // 내가 쓴 글 가져오기
@@ -63,13 +68,39 @@ function User() {
     fetchUserData();
   }, []);
 
-  const handleSubscribe = () => {
-    setUserInfo(prev => ({
-      ...prev,
-      isSubscribed: true,
-      subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-    }));
-    alert('구독이 완료되었습니다!');
+  const handleSubscribe = async () => {
+    try {
+      const response = await authApi.processSubscription();
+      if (response === "구독 처리가 완료되었습니다.") {
+        setUserInfo(prev => ({
+          ...prev,
+          isSubscribed: true,
+          subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        }));
+        alert('구독이 완료되었습니다!');
+      }
+    } catch (error) {
+      console.error('Subscribe Error:', error);
+      alert('구독 처리 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 구독 취소 핸들러 추가
+  const handleUnsubscribe = async () => {
+    try {
+      const response = await authApi.cancelSubscription();
+      if (response === "구독 취소가 완료되었습니다.") {
+        setUserInfo(prev => ({
+          ...prev,
+          isSubscribed: false,
+          subscriptionEndDate: null
+        }));
+        alert('구독이 취소되었습니다.');
+      }
+    } catch (error) {
+      console.error('Unsubscribe Error:', error);
+      alert('구독 취소 중 오류가 발생했습니다.');
+    }
   };
 
   // 게시글 클릭 핸들러
@@ -171,27 +202,40 @@ function User() {
             </div>
           </div>
 
-          {!userInfo.isSubscribed && (
-            <div className="card bg-dark text-light">
-              <div className="card-header bg-dark border-secondary">
-                <h4 className="mb-0">프리미엄 구독</h4>
-              </div>
-              <div className="card-body">
-                <p className="card-text text-secondary">
-                  - 모든 광고 제거<br />
-                  - 종목 분석 데이터 제공<br />
-                  - 알림 설정 무제한
-                </p>
-                <h4 className="mb-3 text-primary">월 9,900원</h4>
-                <button 
-                  className="btn btn-primary w-100"
-                  onClick={handleSubscribe}
-                >
-                  구독하기
-                </button>
-              </div>
+          {/* 구독 버튼 섹션 수정 */}
+          <div className="card bg-dark text-light">
+            <div className="card-header bg-dark border-secondary">
+              <h4 className="mb-0">구독 상태</h4>
             </div>
-          )}
+            <div className="card-body">
+              {userInfo.isSubscribed ? (
+                <>
+                  <p className="text-success mb-3">현재 구독 중입니다</p>
+                  <button 
+                    className="btn btn-danger w-100"
+                    onClick={handleUnsubscribe}
+                  >
+                    구독 취소하기
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="card-text text-secondary">
+                    - 모든 광고 제거<br />
+                    - 종목 분석 데이터 제공<br />
+                    - 알림 설정 무제한
+                  </p>
+                  <h4 className="mb-3 text-primary">월 9,900원</h4>
+                  <button 
+                    className="btn btn-primary w-100"
+                    onClick={handleSubscribe}
+                  >
+                    구독하기
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* 오른쪽 메인 컨텐츠 */}

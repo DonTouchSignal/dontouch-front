@@ -11,6 +11,7 @@ function Register() {
     nickname: ''
   });
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
@@ -22,9 +23,11 @@ function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
     if (formData.password !== formData.passwordConfirm) {
       setError('비밀번호가 일치하지 않습니다.');
+      setIsLoading(false);
       return;
     }
 
@@ -39,8 +42,10 @@ function Register() {
       await authApi.register(requestData);
       navigate('/login');
     } catch (err) {
-      const errorMessage = err.response?.data?.message || '회원가입에 실패했습니다. 다시 시도해주세요.';
+      const errorMessage = err.response?.data?.message || err.message || '회원가입에 실패했습니다. 다시 시도해주세요.';
       setError(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -105,8 +110,12 @@ function Register() {
                     required
                   />
                 </div>
-                <button type="submit" className="btn btn-primary w-100 mb-3">
-                  회원가입
+                <button 
+                  type="submit" 
+                  className="btn btn-primary w-100 mb-3"
+                  disabled={isLoading}
+                >
+                  {isLoading ? '처리중...' : '회원가입'}
                 </button>
                 <div className="text-center">
                   <Link to="/login" className="text-light">
