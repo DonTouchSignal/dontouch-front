@@ -1,90 +1,120 @@
 import axios from 'axios';
-import { jwtDecode } from 'jwt-decode';  // 'jwt-decode'에서 jwtDecode를 가져옴
 
-const BASE_URL = 'http://localhost:8080';
+const BASE_URL = 'http://localhost:8080'; // 알림 서비스 포트로 변경
 
 const axiosInstance = axios.create({
     baseURL: BASE_URL,
-    timeout: 5000,
-    withCredentials: true,
+    timeout: 10000,
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
     }
 });
 
-// 임시 토큰 설정 (테스트용)
-localStorage.setItem('accessToken', '\t\n' +
-    'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiMTIzIiwiZW1haWwiOiJzb2h5dW41NDI5QGdtYWlsLmNvbSIsImlhdCI6MTczOTg5MTM1NywiZXhwIjoxNzM5ODk0OTU3fQ.XQqHJAJQUy_d3vJGGZWSWr5WXUanXupHZvYzAjVtg8w');
-localStorage.setItem('userEmail', 'sohyun5429@gmail.com');
+// 요청 인터셉터 - 인증 헤더 추가
+axiosInstance.interceptors.request.use(
+    config => {
+        const token = localStorage.getItem('accessToken'); // JWT 토큰 저장소에서 가져오기
+        const userEmail = localStorage.getItem('X-Auth-User'); // X-Auth-User 값 가져오기
 
-// 로컬 스토리지에서 토큰과 이메일 가져오는 함수
-const getAuthHeaders = () => {
-
-    const token = localStorage.getItem('accessToken');  // 저장된 토큰 가져오기
-
-    if (!token) {
-        console.warn("토큰이 없습니다.");
-        return {};  // 토큰이 없으면 빈 객체 반환
+        if (token) {
+            config.headers['Authorization'] = `${token}`; // ✅ JWT 토큰 추가
+        }
+        if (userEmail) {
+            config.headers['X-Auth-User'] = userEmail; // ✅ X-Auth-User 추가
+        }
+        return config;
+    },
+    error => {
+        return Promise.reject(error);
     }
-
-    // JWT 토큰을 디코딩하여 이메일 추출
-    try {
-        const decodedToken = jwtDecode(token);  // jwtDecode로 토큰 디코딩
-        const email = decodedToken.email;  // JWT에서 이메일을 추출
-
-        console.log('[Auth Headers] 이메일:', email || '❌ 없음');
-
-        return {
-            'X-Auth-User': email || ''  // 이메일을 헤더에 포함
-        };
-    } catch (error) {
-        console.error('[Auth Headers] 토큰 디코딩 오류:', error);
-        return {};  // 디코딩 오류가 발생하면 빈 객체 반환
-    }
-};
+);
 
 // 알림 API
 const notificationApi = {
-
-    // 알림 조회
-    fetchNotifications: async () => {
+    fetchNotifications: async (userEmail) => {
+        if (!userEmail) {
+            console.error("❌ API 요청 실패: userEmail이 undefined입니다.");
+            return;
+        }
         try {
-            console.log('[GET] /alert/history 요청 시작...');
-            console.log('[Headers]', getAuthHeaders());
-
-            const response = await axiosInstance.get('/alert/history', {
-                headers: getAuthHeaders()
+            const response = await axiosInstance.get(`/alert`, { // ✅ URL 수정
+                headers: { 'X-Auth-User': userEmail }
             });
-
-            console.log('[GET] 응답 상태:', response.status, response.statusText);
-            console.log('[GET] 응답 데이터:', response.data);
-
             return response.data;
         } catch (error) {
-            console.error('[GET] 알림 조회 오류:', error.response ? error.response.data : error.message);
+            console.error("❌ 알림 목록 조회 실패:", error);
             throw error;
         }
     },
 
-    // 알림 삭제
-    deleteNotification: async (alertId) => {
-        try {
-            console.log(`[GET] 요청 시작: /alert/delete/${alertId}`);
-            console.log('[Headers]', getAuthHeaders());
-
-            const response = await axiosInstance.get(`/alert/delete/${alertId}`, {
-                headers: getAuthHeaders()
-            });
-
-            console.log('[GET] 응답 상태:', response.status, response.statusText);
-            console.log('[GET] 응답 데이터:', response.data);
-
-            return response.data;
-        } catch (err) {
-            console.error('[GET] 알림 삭제 오류:', err.response ? err.response.data : err.message);
-            throw err;
+    // 단일 알림 삭제
+    deleteNotification: async (notificationId, userEmail) => {
+        if (!notificationId) {
+            console.error("❌ 알림 삭제 요청 실패: notificationId가 undefined입니다.");
+            return;
         }
+    
+        try {
+            const response = await axiosInstance.delete(`/alert/${notificationId}`, {
+                headers: { 'X-Auth-User': userEmail }
+            });
+            return response.data;
+        } catch (error) {
+            console.error(`❌ 알림 삭제 실패 (ID: ${notificationId}):`, error);
+            throw error;
+        }
+    },
+    
+
+    // 모든 알림 삭제
+    deleteAllNotifications: async (userEmail) => {
+        try {
+            const response = await axiosInstance.delete('/alert', {
+                headers: {
+                    'X-Auth-User': userEmail
+                }
+            });
+            return response.data;
+        } catch (error) {
+            console.error('❌ 모든 알림 삭제 실패:', error);
+            throw error;
+        }
+    },
+
+    // WebSocket 연결
+    connectToNotifications: (userEmail, onMessage) => {
+        if (!userEmail) {
+            console.error('❌ WebSocket 연결 실패: 사용자 이메일 없음');
+            return null;
+        }
+
+        const ws = new WebSocket(`ws://${BASE_URL.replace('http://', '')}/ws/alerts?email=${userEmail}`);
+        
+        ws.onopen = () => {
+            console.log('✅ 알림 WebSocket 연결 성공');
+        };
+        
+        ws.onmessage = (event) => {
+            onMessage(event.data);
+        };
+        
+        ws.onerror = (error) => {
+            console.error('❌ WebSocket 오류:', error);
+        };
+        
+        ws.onclose = () => {
+            console.log('🚪 WebSocket 연결 종료');
+        };
+        
+        return {
+            socket: ws,
+            close: () => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.close();
+                }
+            }
+        };
     }
 };
 
