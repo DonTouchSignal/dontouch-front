@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import boardApi from '../api/boardApi';
+import assetApi from '../api/assetApi'; // 종목 정보를 가져오기 위한 API 추가
 
 function BoardList() {
   const { assetId } = useParams();
@@ -9,10 +10,47 @@ function BoardList() {
   const [error, setError] = useState(null);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [userNicknames, setUserNicknames] = useState({});
+  const [assetInfo, setAssetInfo] = useState(null); // 종목 정보 상태 추가
 
   useEffect(() => {
     fetchPosts();
+    fetchAssetInfo(); // 페이지 로드 시 종목 정보 가져오기
   }, [assetId, page]);
+
+  // 종목 정보를 가져오는 함수
+  const fetchAssetInfo = async () => {
+    try {
+      const response = await assetApi.getStockDetail(assetId);
+      if (response && (response.koreanName || response.englishName)) {
+        setAssetInfo({
+          name: response.koreanName || response.englishName
+        });
+      } else {
+        setAssetInfo({ name: assetId }); // 정보가 없으면 심볼을 이름으로 사용
+      }
+    } catch (err) {
+      console.error('종목 정보 가져오기 실패:', err);
+      setAssetInfo({ name: assetId }); // 오류 시 심볼을 이름으로 사용
+    }
+  };
+
+  useEffect(() => {
+    const fetchNicknames = async () => {
+      const nicknames = {};
+      for (const post of posts) {
+        if (!userNicknames[post.userEmail]) {
+          const nickname = await boardApi.getNickname(post.userEmail);
+          nicknames[post.userEmail] = nickname;
+        }
+      }
+      setUserNicknames(prev => ({ ...prev, ...nicknames }));
+    };
+
+    if (posts.length > 0) {
+      fetchNicknames();
+    }
+  }, [posts]);
 
   const fetchPosts = async () => {
     try {
@@ -30,7 +68,7 @@ function BoardList() {
     }
   };
 
-  if (loading) return (
+  if (loading && !assetInfo) return (
     <div className="container py-4 text-light">
       <div className="text-center">
         <div className="spinner-border" role="status">
@@ -50,8 +88,13 @@ function BoardList() {
 
   return (
     <div className="container py-4">
-      <h2 className="text-light mb-4">{assetId === '1' ? '주식' : '코인'} 게시판</h2>
+      {/* 종목명 + 게시판으로 표시 */}
+      <h2 className="text-light mb-4">
+        {assetInfo ? assetInfo.name : assetId} 게시판
+      </h2>
+      
       <div className="card bg-dark">
+        {/* 나머지 코드는 동일 */}
         <div className="card-body">
           <div className="table-responsive">
             <table className="table table-dark table-hover">
@@ -76,7 +119,9 @@ function BoardList() {
                         {post.title}
                       </Link>
                     </td>
-                    <td className="text-center">User #{post.userId}</td>
+                    <td className="text-center">
+                      {post.userNickname}
+                    </td>
                     <td className="text-center">{new Date(post.createdAt).toLocaleString()}</td>
                     <td className="text-center">{post.viewCount}</td>
                     <td className="text-center">{post.likeCount}</td>
@@ -137,4 +182,4 @@ function BoardList() {
   );
 }
 
-export default BoardList; 
+export default BoardList;
