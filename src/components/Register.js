@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import authApi from '../api/authApi';
 
 function Register() {
   const navigate = useNavigate();
@@ -10,6 +11,7 @@ function Register() {
     nickname: ''
   });
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
@@ -21,27 +23,29 @@ function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
-    // 비밀번호 확인
     if (formData.password !== formData.passwordConfirm) {
       setError('비밀번호가 일치하지 않습니다.');
+      setIsLoading(false);
       return;
     }
 
     try {
-      // TODO: API 연동
-      const registerData = {
+      const requestData = {
         email: formData.email,
         password: formData.password,
-        nickname: formData.nickname,
-        role: 'USER',
-        subscribe: false
+        nickName: formData.nickname
       };
+      console.log('Sending registration data:', requestData);
       
-      console.log('회원가입 시도:', registerData);
+      await authApi.register(requestData);
       navigate('/login');
     } catch (err) {
-      setError('회원가입에 실패했습니다. 다시 시도해주세요.');
+      const errorMessage = err.response?.data?.message || err.message || '회원가입에 실패했습니다. 다시 시도해주세요.';
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -106,8 +110,12 @@ function Register() {
                     required
                   />
                 </div>
-                <button type="submit" className="btn btn-primary w-100 mb-3">
-                  회원가입
+                <button 
+                  type="submit" 
+                  className="btn btn-primary w-100 mb-3"
+                  disabled={isLoading}
+                >
+                  {isLoading ? '처리중...' : '회원가입'}
                 </button>
                 <div className="text-center">
                   <Link to="/login" className="text-light">

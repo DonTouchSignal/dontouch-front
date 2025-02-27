@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import authApi from '../api/authApi';
 
 function Login() {
   const navigate = useNavigate();
@@ -21,11 +22,38 @@ function Login() {
     setError('');
 
     try {
-      // TODO: API 연동
-      console.log('로그인 시도:', formData);
-      navigate('/');
+      const response = await authApi.login({
+        email: formData.email,
+        password: formData.password
+      });
+      
+      if (response === "로그인 성공") {
+        // 저장된 값 확인을 위해 약간의 지연 추가
+        setTimeout(() => {
+          const accessToken = localStorage.getItem('accessToken');
+          const refreshToken = localStorage.getItem('refreshToken');
+          const authUser = localStorage.getItem('X-Auth-User');
+          
+          console.log('Final check - Stored values:', {
+            accessToken,
+            refreshToken,
+            authUser
+          });
+
+          if (accessToken && authUser) {
+            navigate('/');
+            window.location.reload();
+          } else {
+            console.error('Missing auth info:', { accessToken, authUser });
+            setError('인증 정보 저장에 실패했습니다.');
+          }
+        }, 100);
+      } else {
+        throw new Error('로그인 실패');
+      }
     } catch (err) {
       setError('로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.');
+      console.error('Login Error:', err);
     }
   };
 

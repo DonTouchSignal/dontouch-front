@@ -17,14 +17,62 @@ function PostDetail() {
   const [editedContent, setEditedContent] = useState('');
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentContent, setEditingCommentContent] = useState('');
+  const [authorNickname, setAuthorNickname] = useState('');
+  const [commentNicknames, setCommentNicknames] = useState({});
+  const [imagePreview, setImagePreview] = useState(null);
 
-  const currentUserId = localStorage.getItem('userId');
+  const currentUserEmail = localStorage.getItem('X-Auth-User');
 
-  // 게시글 데이터 가져오기
+  // 디버깅을 위한 콘솔 로그 추가
+  console.log('Current user email:', currentUserEmail);
+  console.log('Post user email:', post?.userEmail);
+  console.log('Types:', {
+    currentUserEmail: typeof currentUserEmail,
+    postUserEmail: typeof post?.userEmail
+  });
+
   useEffect(() => {
-    fetchPost();
-    fetchComments();
+    const checkAuth = () => {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        navigate('/login');
+        return false;
+      }
+      return true;
+    };
+
+    if (checkAuth()) {
+      fetchPost();
+      fetchComments();
+    }
   }, [assetId, postId]);
+
+  useEffect(() => {
+    const fetchNicknames = async () => {
+      if (post) {
+        const nickname = await boardApi.getNickname(post.userEmail);
+        setAuthorNickname(nickname);
+      }
+    };
+    fetchNicknames();
+  }, [post]);
+
+  useEffect(() => {
+    const fetchCommentNicknames = async () => {
+      const nicknames = {};
+      for (const comment of comments) {
+        if (!commentNicknames[comment.userEmail]) {
+          const nickname = await boardApi.getNickname(comment.userEmail);
+          nicknames[comment.userEmail] = nickname;
+        }
+      }
+      setCommentNicknames(prev => ({ ...prev, ...nicknames }));
+    };
+
+    if (comments.length > 0) {
+      fetchCommentNicknames();
+    }
+  }, [comments]);
 
   const fetchPost = async () => {
     try {
@@ -42,13 +90,6 @@ function PostDetail() {
   const fetchComments = async () => {
     try {
       const data = await boardApi.getComments(postId, commentPage);
-      
-      // 데이터가 비어있고 현재 페이지가 0이 아닌 경우
-      if (data.content.length === 0 && commentPage > 0) {
-        setCommentPage(prev => prev - 1); // 이전 페이지로 이동
-        return; // 여기서 함수 종료
-      }
-
       setComments(data.content);
       setTotalCommentPages(data.totalPages);
       setError(null);
@@ -161,6 +202,26 @@ function PostDetail() {
     }
   }, [postId, commentPage]);
 
+  // 게시글 작성자 확인
+  const isAuthor = (authorEmail) => {
+    return String(currentUserEmail) === String(authorEmail);
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB 제한
+        setError('이미지 크기는 5MB를 초과할 수 없습니다.');
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        setError('이미지 파일만 업로드 가능합니다.');
+        return;
+      }
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
   if (loading) return (
     <div className="container py-4 text-light">
       <div className="text-center">
@@ -186,7 +247,7 @@ function PostDetail() {
       <div className="card bg-dark text-light mb-4">
         <div className="card-body">
           {isEditing ? (
-            // 게시글 수정 폼
+            // 수정 폼
             <form onSubmit={(e) => { e.preventDefault(); handleEditPost(); }}>
               <div className="mb-3">
                 <input
@@ -203,6 +264,26 @@ function PostDetail() {
                   value={editedContent}
                   onChange={(e) => setEditedContent(e.target.value)}
                 />
+              </div>
+              <div className="mb-3">
+                <label htmlFor="image" className="form-label">이미지 첨부</label>
+                <input
+                  type="file"
+                  className="form-control bg-dark text-light"
+                  id="image"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
+                {(imagePreview || post.imageUrl) && (
+                  <div className="mt-2">
+                    <img
+                      src={imagePreview || post.imageUrl}
+                      alt="Preview"
+                      className="img-thumbnail"
+                      style={{ maxHeight: '200px' }}
+                    />
+                  </div>
+                )}
               </div>
               <div className="d-flex gap-2">
                 <button type="submit" className="btn btn-primary">저장</button>
@@ -221,7 +302,7 @@ function PostDetail() {
               <h2 className="card-title">{post.title}</h2>
               <div className="d-flex justify-content-between mb-3">
                 <div>
-                  <span className="text-secondary me-3">작성자: User #{post.userId}</span>
+                  <span className="text-secondary me-3">작성자: {post.userNickname}</span>
                   <span className="text-secondary me-3">조회수: {post.viewCount}</span>
                   <span className="text-secondary">좋아요: {post.likeCount}</span>
                 </div>
@@ -230,6 +311,16 @@ function PostDetail() {
                 </span>
               </div>
               <hr className="border-secondary" />
+              {post.imageUrl && (
+                <div className="mb-3">
+                  <img
+                    src={post.imageUrl}
+                    alt="Post"
+                    className="img-fluid"
+                    style={{ maxHeight: '400px' }}
+                  />
+                </div>
+              )}
               <p className="card-text">{post.content}</p>
               <div className="d-flex justify-content-between align-items-center mt-4">
                 <button
@@ -239,7 +330,7 @@ function PostDetail() {
                   좋아요 {post.likeCount}
                 </button>
                 <div>
-                  {post.userId === parseInt(currentUserId) && (
+                  {isAuthor(post.userEmail) && (
                     <>
                       <button
                         className="btn btn-outline-primary me-2"
@@ -248,7 +339,7 @@ function PostDetail() {
                         수정
                       </button>
                       <button
-                        className="btn btn-outline-danger me-2"
+                        className="btn btn-outline-danger"
                         onClick={handleDeletePost}
                       >
                         삭제
@@ -325,7 +416,7 @@ function PostDetail() {
               ) : (
                 <>
                   <div className="d-flex justify-content-between align-items-center mb-2">
-                    <strong>User #{comment.userId}</strong>
+                    <strong>{comment.userNickname}</strong>
                     <small className="text-secondary">
                       {new Date(comment.createdAt).toLocaleString()}
                     </small>
@@ -334,8 +425,8 @@ function PostDetail() {
                     <div className="me-3" style={{ flex: 1, textAlign: 'left' }}>
                       <p className="mb-0" style={{ wordBreak: 'break-all' }}>{comment.content}</p>
                     </div>
-                    {comment.userId === parseInt(currentUserId) && (
-                      <div className="d-flex gap-2 flex-shrink-0">
+                    {isAuthor(comment.userEmail) && (
+                      <div className="d-flex gap-2">
                         <button
                           className="btn btn-outline-primary btn-sm"
                           onClick={() => {

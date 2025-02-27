@@ -1,19 +1,54 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FaBell } from 'react-icons/fa';
+import boardApi from '../api/boardApi';
 
 function Navbar() {
-  // 임시로 로그인 상태를 true로 설정
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
-  const [username, setUsername] = useState('홍길동');
-  const [unreadNotifications, setUnreadNotifications] = useState(2); // 임시 알림 카운트
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [username, setUsername] = useState('');
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [userNickname, setUserNickname] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      const accessToken = localStorage.getItem('accessToken');
+      const authUser = localStorage.getItem('X-Auth-User');
+      
+      if (accessToken && authUser) {
+        setIsLoggedIn(true);
+        setUsername(authUser);
+        try {
+          const nickname = await boardApi.getNickname();
+          if (nickname) {
+            setUserNickname(nickname);
+          }
+        } catch (error) {
+          console.error('Error fetching nickname:', error);
+        }
+      } else {
+        setIsLoggedIn(false);
+        setUsername('');
+        setUserNickname('');
+      }
+      setLoading(false);
+    };
+
+    checkLoginStatus();
+  }, []);
 
   const handleLogout = () => {
+    // 로그아웃 시 localStorage의 인증 정보 삭제
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('X-Auth-User');
+    
     setIsLoggedIn(false);
-  };
-
-  const handleLogin = () => {
-    setIsLoggedIn(true);
+    setUsername('');
+    setUserNickname('');
+    
+    // 홈페이지로 이동
+    window.location.href = '/';
   };
 
   return (
@@ -63,14 +98,19 @@ function Navbar() {
             {isLoggedIn ? (
               <>
                 <li className="nav-item">
-                  <span className="nav-link">
-                    <span className="text-light">{username}</span>님 환영합니다
-                  </span>
+                  {loading ? (
+                    <span className="nav-link">로딩중...</span>
+                  ) : (
+                    <span className="nav-link">
+                      <span className="text-light">{userNickname}</span>님 환영합니다
+                    </span>
+                  )}
                 </li>
                 <li className="nav-item">
                   <Link to={`/users/${username}`} 
                     className="btn btn-outline-light ms-2">
-                    마이페이지</Link>
+                    마이페이지
+                  </Link>
                 </li>
                 <li className="nav-item">
                   <button 
@@ -84,7 +124,7 @@ function Navbar() {
             ) : (
               <>
                 <li className="nav-item">
-                  <Link className="nav-link" to="/login" onClick={handleLogin}>로그인</Link>
+                  <Link className="nav-link" to="/login">로그인</Link>
                 </li>
                 <li className="nav-item">
                   <Link className="btn btn-outline-light ms-2" to="/register">
