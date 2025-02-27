@@ -1,109 +1,67 @@
 import axios from 'axios';
 
-const BASE_URL = 'http://localhost:8081/api';
-
-// JWT 토큰을 가져오는 함수 (나중에 구현)
-const getAuthToken = () => {
-  // localStorage나 다른 상태 관리 도구에서 토큰을 가져옴
-  return localStorage.getItem('token');
-};
-
-// JWT 토큰에서 userId를 디코딩하거나, 별도로 저장된 userId를 가져옴
-const getUserId = () => {
-  const userId = localStorage.getItem('userId');
-  console.log('Current userId:', userId); // 디버깅용
-  return userId ? parseInt(userId) : null;
-};
+const BASE_URL = 'http://localhost:8080';
 
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
   timeout: 5000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
 });
 
-// 요청 인터셉터에서 자동으로 인증 헤더 추가
+// 요청 인터셉터
 axiosInstance.interceptors.request.use(
   config => {
-    const token = getAuthToken();
-    const userId = getUserId();
-    
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
+    const accessToken = localStorage.getItem('accessToken');
+    const authUser = localStorage.getItem('X-Auth-User');
+    if (accessToken) {
+      config.headers['Authorization'] = accessToken;
     }
-    if (userId) {
-      config.headers['X-USER-ID'] = userId;
+    if (authUser) {
+      config.headers['X-Auth-User'] = authUser;
     }
-    
-    console.log('Making request:', config.method.toUpperCase(), `${config.baseURL}${config.url}`);
     return config;
   },
   error => {
-    console.error('Request Error:', error);
     return Promise.reject(error);
   }
 );
 
-// 응답 인터셉터 수정
+// 응답 인터셉터
 axiosInstance.interceptors.response.use(
   response => {
-    console.log('Response received:', response.status, response.data);
     return response;
   },
   error => {
-    // 더 자세한 에러 로깅
-    if (error.response) {
-      // 서버가 응답을 반환한 경우
-      console.error('Error Response:', {
-        status: error.response.status,
-        data: error.response.data,
-        headers: error.response.headers
-      });
-    } else if (error.request) {
-      // 요청은 보냈지만 응답을 받지 못한 경우
-      console.error('No Response Received:', {
-        request: error.request,
-        config: error.config
-      });
-    } else {
-      // 요청 설정 중에 오류가 발생한 경우
-      console.error('Error Config:', error.message);
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('X-Auth-User');
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
 
 const boardApi = {
-  // 사용자 ID 가져오기
-  getUserId: () => {
-    const userId = localStorage.getItem('userId');
-    console.log('Current userId:', userId);
-    return userId ? parseInt(userId) : null;
-  },
-
   // 게시글 관련 API
   getPosts: async (assetId, page = 0, size = 10) => {
     try {
-      const response = await axiosInstance.get(`/assets/${assetId}/posts`, {
+      const response = await axiosInstance.get(`/api/assets/${assetId}/posts`, {
         params: { page, size }
       });
-      console.log('Posts response:', response.data);
       return response.data;
     } catch (error) {
-      console.error('getPosts Error Details:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data
-      });
+      console.error('getPosts Error:', error);
       throw error;
     }
   },
 
   getPost: async (assetId, postId) => {
     try {
-      const response = await axiosInstance.get(`/assets/${assetId}/posts/${postId}`);
+      const response = await axiosInstance.get(`/api/assets/${assetId}/posts/${postId}`);
       const post = response.data;
       
       // 현재 사용자의 좋아요 여부 확인
@@ -122,9 +80,17 @@ const boardApi = {
     }
   },
 
-  createPost: async (assetId, postData) => {
+  createPost: async (assetId, postData, imageFile) => {
     try {
-      const response = await axiosInstance.post(`/assets/${assetId}/posts`, postData);
+      let imageUrl = null;
+      if (imageFile) {
+        imageUrl = await boardApi.uploadImage(imageFile);
+      }
+
+      const response = await axiosInstance.post(`/api/assets/${assetId}/posts`, {
+        ...postData,
+        imageUrl
+      });
       return response.data;
     } catch (error) {
       console.error('createPost Error:', error);
@@ -132,19 +98,32 @@ const boardApi = {
     }
   },
 
-  updatePost: async (assetId, postId, postData) => {
-    const response = await axiosInstance.put(`/assets/${assetId}/posts/${postId}`, postData);
-    return response.data;
+  updatePost: async (assetId, postId, postData, imageFile) => {
+    try {
+      let imageUrl = postData.imageUrl;
+      if (imageFile) {
+        imageUrl = await boardApi.uploadImage(imageFile);
+      }
+
+      const response = await axiosInstance.put(`/api/assets/${assetId}/posts/${postId}`, {
+        ...postData,
+        imageUrl
+      });
+      return response.data;
+    } catch (error) {
+      console.error('updatePost Error:', error);
+      throw error;
+    }
   },
 
   deletePost: async (assetId, postId) => {
-    await axiosInstance.delete(`/assets/${assetId}/posts/${postId}`);
+    await axiosInstance.delete(`/api/assets/${assetId}/posts/${postId}`);
   },
 
   // 댓글 관련 API
   getComments: async (postId, page = 0, size = 10) => {
     try {
-      const response = await axiosInstance.get(`/posts/${postId}/comments`, {
+      const response = await axiosInstance.get(`/api/posts/${postId}/comments`, {
         params: {
           page,
           size,
@@ -160,7 +139,7 @@ const boardApi = {
 
   createComment: async (postId, commentData) => {
     try {
-      const response = await axiosInstance.post(`/posts/${postId}/comments`, commentData);
+      const response = await axiosInstance.post(`/api/posts/${postId}/comments`, commentData);
       return response.data;
     } catch (error) {
       console.error('createComment Error:', error);
@@ -170,7 +149,7 @@ const boardApi = {
 
   updateComment: async (postId, commentId, commentData) => {
     try {
-      const response = await axiosInstance.put(`/posts/${postId}/comments/${commentId}`, commentData);
+      const response = await axiosInstance.put(`/api/posts/${postId}/comments/${commentId}`, commentData);
       return response.data;
     } catch (error) {
       console.error('updateComment Error:', error);
@@ -180,7 +159,7 @@ const boardApi = {
 
   deleteComment: async (postId, commentId) => {
     try {
-      await axiosInstance.delete(`/posts/${postId}/comments/${commentId}`);
+      await axiosInstance.delete(`/api/posts/${postId}/comments/${commentId}`);
     } catch (error) {
       console.error('deleteComment Error:', error);
       throw error;
@@ -191,14 +170,14 @@ const boardApi = {
   toggleLike: async (assetId, postId) => {
     const isLiked = await boardApi.getLikeStatus(assetId, postId);
     if (isLiked) {
-      await axiosInstance.delete(`/assets/${assetId}/posts/${postId}/like`);
+      await axiosInstance.delete(`/api/assets/${assetId}/posts/${postId}/like`);
     } else {
-      await axiosInstance.post(`/assets/${assetId}/posts/${postId}/like`);
+      await axiosInstance.post(`/api/assets/${assetId}/posts/${postId}/like`);
     }
   },
 
   getLikeStatus: async (assetId, postId) => {
-    const response = await axiosInstance.get(`/assets/${assetId}/posts/${postId}/like`);
+    const response = await axiosInstance.get(`/api/assets/${assetId}/posts/${postId}/like`);
     return response.data;
   },
 
@@ -216,9 +195,7 @@ const boardApi = {
   // 좋아요 등록
   likePost: async (assetId, postId) => {
     try {
-      console.log(`Liking post: assetId=${assetId}, postId=${postId}`);
-      const response = await axiosInstance.post(`/assets/${assetId}/posts/${postId}/like`);
-      console.log('Like response:', response.data);
+      const response = await axiosInstance.post(`/api/assets/${assetId}/posts/${postId}/like`);
       return response.data;
     } catch (error) {
       console.error('likePost Error:', error);
@@ -229,9 +206,7 @@ const boardApi = {
   // 좋아요 취소
   unlikePost: async (assetId, postId) => {
     try {
-      console.log(`Unliking post: assetId=${assetId}, postId=${postId}`);
-      const response = await axiosInstance.delete(`/assets/${assetId}/posts/${postId}/like`);
-      console.log('Unlike response:', response.data);
+      const response = await axiosInstance.delete(`/api/assets/${assetId}/posts/${postId}/like`);
       return response.data;
     } catch (error) {
       console.error('unlikePost Error:', error);
@@ -239,13 +214,63 @@ const boardApi = {
     }
   },
 
-  // 좋아요 상태 확인
-  getLikeStatus: async (assetId, postId) => {
+  // 현재 로그인한 사용자와 게시글 작성자가 같은지 확인하는 함수
+  isCurrentUserAuthor: (authorEmail) => {
+    const currentUserEmail = localStorage.getItem('X-Auth-User');
+    return String(currentUserEmail) === String(authorEmail);
+  },
+
+  // 내가 작성한 게시글 목록 조회
+  getMyPosts: async (page = 0, size = 10) => {
     try {
-      const response = await axiosInstance.get(`/assets/${assetId}/posts/${postId}/like`);
+      const response = await axiosInstance.get('/api/users/me/posts', {
+        params: { page, size }
+      });
       return response.data;
     } catch (error) {
-      console.error('getLikeStatus Error:', error);
+      console.error('getMyPosts Error:', error);
+      throw error;
+    }
+  },
+
+  // 내가 좋아요한 게시글 목록 조회
+  getMyLikedPosts: async (page = 0, size = 10) => {
+    try {
+      const response = await axiosInstance.get('/api/users/me/liked-posts', {
+        params: { page, size }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('getMyLikedPosts Error:', error);
+      throw error;
+    }
+  },
+
+  // 닉네임 조회 - 특정 사용자의 닉네임 조회
+  getNickname: async (email) => {
+    try {
+      const response = await axiosInstance.get(`/user/nickname?email=${email}`);
+      return response.data;
+    } catch (error) {
+      console.error('getNickname Error:', error);
+      return email; // 에러 시 이메일 반환
+    }
+  },
+
+  // 이미지 업로드
+  uploadImage: async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await axiosInstance.post('/api/images/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data; // S3 URL 반환
+    } catch (error) {
+      console.error('uploadImage Error:', error);
       throw error;
     }
   },
